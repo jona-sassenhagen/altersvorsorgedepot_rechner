@@ -198,20 +198,24 @@ h1 {
 .inline-fields > label input,
 .inline-fields > label select {
   grid-column: 2;
-  width: min(88px, 100%);
+  width: min(96px, 100%);
   justify-self: end;
   text-align: right;
 }
 
 #existing-contract {
-  width: min(92px, 100%);
+  width: min(100px, 100%);
 }
 
 #existing-contract,
 #applicant-contribution,
 #spouse-contribution {
   padding-left: 4px;
-  padding-right: 4px;
+  padding-right: 14px;
+}
+
+input[type="number"] {
+  padding-right: 0.9em;
 }
 
 .existing-contract-row {
@@ -310,9 +314,10 @@ h1 {
 
 .form-section > label.fee-row input {
   grid-column: auto;
-  width: 80px;
+  width: 92px;
   justify-self: auto;
   text-align: right;
+  padding-right: 0.9em;
 }
 
 .field-group {
@@ -373,6 +378,13 @@ h1 {
 .month-year-fields select {
   width: min(68px, 100%);
   justify-self: start;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%235a6454' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 10px 6px;
+  padding-right: 30px;
 }
 
 .inline-fields-wide > label input {

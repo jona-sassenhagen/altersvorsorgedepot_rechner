@@ -1152,7 +1152,7 @@ function renderChart(result) {
   const hoverY = hoveredPoint ? yScale(hoveredPoint[seriesType].household.median) : null;
   const hoverContributionY = hoveredPoint ? yScale(hoveredPoint[seriesType].contributions.median) : null;
 
-  const applicantMarker = markerLine(result.retirementYear, xScale, margin, plotHeight, colors.markerApplicant, "Rente Antrag");
+  const applicantMarker = markerLine(result.retirementYear, xScale, margin, plotHeight, colors.markerApplicant, "Rentenbeginn");
   const spouseMarker =
     result.hasSpouse && result.spouseRetirementYear !== null
       ? markerLine(result.spouseRetirementYear, xScale, margin, plotHeight, colors.markerSpouse, "Rente Partner")
