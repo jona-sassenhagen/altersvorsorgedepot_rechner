@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Altersvorsorgedepot-Rechner</title>
+    <meta
+      name="description"
+      content="Statischer Haushaltsrechner für das Altersvorsorgedepot mit lokal gespeicherten MSCI-World-EUR-Daten und 15-Jahres-Bootstraps."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div class="hero-copy-block">
+          <h1>Altersvorsorgedepot-Rechner</h1>
+        </div>
+        <div class="hero-actions">
+          <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Farbschema umschalten" title="Farbschema umschalten">
+            <span class="theme-icon theme-sun" aria-hidden="true">☀</span>
+            <span class="theme-icon theme-moon" aria-hidden="true">☾</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="panel controls-panel">
+          <div class="panel-header">
+            <h2>Haushaltsdaten</h2>
+            <button id="reset-session" class="ghost-button small-button" type="button">Werte zurücksetzen</button>
+          </div>
+
+          <form id="calculator-form" class="form-grid">
+            <section class="form-section">
+              <label class="fee-row">
+                <span class="label-with-info">
+                  <span>Produktkosten pro Jahr</span>
+                  <span class="info-wrap">
+                    <button class="info-button" type="button" aria-label="Info zu Produktkosten">i</button>
+                    <span class="info-tooltip">Produktkosten werden laufend vom Vertragsguthaben abgezogen. Schon kleine prozentuale Kosten können den langfristigen Vermögensaufbau spürbar schmälern. Für dieses Produkt gilt hier eine Obergrenze von 1,5 % pro Jahr.</span>
+                  </span>
+                </span>
+                <input
+                  id="projected-fee"
+                  name="projectedFee"
+                  type="number"
+                  min="0"
+                  max="1.5"
+                  step="0.1"
+                  value="0.2"
+                  inputmode="decimal"
+                />
+                <span>%</span>
+              </label>
+            </section>
+
+            <section class="form-section">
+              <h3>Antragstellende Person</h3>
+              <div class="inline-fields inline-fields-wide">
+                <div class="field-group birthdate-group">
+                  <span class="field-label">Geburtsdatum</span>
+                  <div class="month-year-fields">
+                    <label>
+                      Monat
+                      <select id="applicant-birth-month" name="applicantBirthMonth" required></select>
+                    </label>
+                    <label>
+                      Jahr
+                      <input
+                        id="applicant-birth-year"
+                        name="applicantBirthYear"
+                        type="number"
+                        inputmode="numeric"
+                        min="1900"
+                        max="2050"
+                        step="1"
+                        placeholder="1990"
+                        required
+                      />
+                    </label>
+                  </div>
+                </div>
+                <label>
+                  Renteneintrittsalter
+                  <input id="retirement-age" name="retirementAge" type="number" min="50" max="75" step="1" value="67" />
+                </label>
+              </div>
+
+              <label class="existing-contract-row money-row">
+                <span class="label-with-info">
+                  <span class="label-desktop">Bestehender Riester-Vertrag €</span>
+                  <span class="label-mobile">Bestehender Riester €</span>
+                  <span class="info-wrap">
+                    <button class="info-button" type="button" aria-label="Info zu bestehendem Riester">i</button>
+                    <span class="info-tooltip">Ein bestehender Riester-Vertrag kann in das Altersvorsorgedepot übertragen werden. Bereits angespartes Guthaben kann so im neuen System weiter investiert bleiben.</span>
+                  </span>
+                </span>
+                <input
+                  id="existing-contract"
+                  name="existingContract"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value="0"
+                  inputmode="numeric"
+                />
+              </label>
+
+              <label class="money-row">
+                <span>Monatlicher Beitrag €</span>
+                <input
+                  id="applicant-contribution"
+                  name="applicantContribution"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value="150"
+                  required
+                />
+              </label>
+
+              <div class="preset-row" data-target="applicant-contribution"></div>
+
+              <div class="field-group">
+                <div class="field-label label-with-info">
+                  <span>Grenzsteuersatz</span>
+                  <span class="info-wrap">
+                    <button class="info-button" type="button" aria-label="Info zu Grenzsteuersatz antragstellende Person">i</button>
+                    <span class="info-tooltip">Beim Altersvorsorgedepot hängt der mögliche steuerliche Vorteil davon ab, wie hoch dein persönlicher Grenzsteuersatz ist.</span>
+                  </span>
+                </div>
+                <div id="applicant-income" class="tax-button-group" role="radiogroup" aria-label="Grenzsteuersatz antragstellende Person"></div>
+              </div>
+            </section>
+
+            <section class="form-section spouse-section">
+              <div class="section-heading">
+                <h3>Partner</h3>
+                <button id="toggle-spouse" class="ghost-button small-button" type="button">Partner hinzufügen</button>
+              </div>
+
+              <div id="spouse-fields" class="conditional-section hidden">
+                <div class="field-group birthdate-group">
+                  <span class="field-label">Geburtsdatum</span>
+                  <div class="month-year-fields">
+                    <label>
+                      Monat
+                      <select id="spouse-birth-month" name="spouseBirthMonth"></select>
+                    </label>
+                    <label>
+                      Jahr
+                      <input
+                        id="spouse-birth-year"
+                        name="spouseBirthYear"
+                        type="number"
+                        inputmode="numeric"
+                        min="1900"
+                        max="2050"
+                        step="1"
+                        placeholder="1992"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <label class="money-row">
+                  <span>Monatlicher Beitrag €</span>
+                  <input
+                    id="spouse-contribution"
+                    name="spouseContribution"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value="150"
+                  />
+                </label>
+
+                <label>
+                  Renteneintrittsalter
+                  <input id="spouse-retirement-age" name="spouseRetirementAge" type="number" min="50" max="75" step="1" value="67" />
+                </label>
+
+                <div class="preset-row" data-target="spouse-contribution"></div>
+
+                <div class="field-group">
+                  <div class="field-label label-with-info">
+                    <span>Grenzsteuersatz</span>
+                    <span class="info-wrap">
+                      <button class="info-button" type="button" aria-label="Info zu Grenzsteuersatz Partner">i</button>
+                      <span class="info-tooltip">Beim Altersvorsorgedepot hängt der mögliche steuerliche Vorteil davon ab, wie hoch dein persönlicher Grenzsteuersatz ist.</span>
+                    </span>
+                  </div>
+                  <div id="spouse-income" class="tax-button-group" role="radiogroup" aria-label="Grenzsteuersatz Partnerin oder Partner"></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="form-section children-section">
+              <div class="section-heading">
+                <h3>Kinder</h3>
+                <button id="add-child" class="ghost-button small-button" type="button">Kind hinzufügen</button>
+              </div>
+              <div id="children-list" class="children-list"></div>
+              <p id="children-hint" class="hint hidden">Kinder werden bis zum 18. Lebensjahr für die modellierte Kinderförderung berücksichtigt.</p>
+            </section>
+          </form>
+        </section>
+
+        <section class="panel results-panel">
+          <div class="panel-header">
+            <div>
+              <h2>Projektion</h2>
+              <p id="data-status">Lokale Markt- und Inflationsdaten werden geladen…</p>
+            </div>
+            <div class="badge-row">
+              <button id="rerun-simulations" class="badge badge-button" type="button">2.500 Pfade</button>
+              <span class="badge">15-Jahres-Blöcke</span>
+              <span class="badge">MSCI World EUR</span>
+            </div>
+          </div>
+
+          <div id="error-banner" class="error-banner hidden"></div>
+
+          <div class="summary-grid">
+            <article class="summary-card">
+              <span class="summary-label label-with-info">
+                <span>Median zum Rentenbeginn</span>
+                <span class="info-wrap">
+                  <button class="info-button" type="button" aria-label="Info zu Median zum Rentenbeginn">i</button>
+                  <span class="info-tooltip">Der Median ist der mittlere Wert einer Verteilung: 50 % der Ergebnisse liegen darunter und 50 % darüber. Wenn ein Partner einbezogen ist, bezieht sich der Wert auf das gemeinsame Depot zu dem Zeitpunkt, an dem beide im Ruhestand sind.</span>
+                </span>
+              </span>
+              <strong id="retirement-value">-</strong>
+            </article>
+            <article class="summary-card">
+              <span class="summary-label label-with-info">
+                <span>Ø Zusatzrente bei 4% Entnahme</span>
+                <span class="info-wrap">
+                  <button class="info-button" type="button" aria-label="Info zu Zusatzrente bei 4 Prozent Entnahme">i</button>
+                  <span class="info-tooltip">Die 4-%-Regel ist eine verbreitete Faustregel für Entnahmen aus angespartem Vermögen. Ausgangspunkt ist eine jährliche Entnahme von 4 % des Depotwerts zum Ruhestart; dieser Entnahmebetrag wird danach mit der Inflation fortgeschrieben.</span>
+                </span>
+              </span>
+              <strong id="withdrawal-income">-</strong>
+            </article>
+            <article class="summary-card">
+              <span class="summary-label label-with-info">
+                <span>95%-Band bei Renteneintritt</span>
+                <span class="info-wrap">
+                  <button class="info-button" type="button" aria-label="Info zu 95 Prozent Band bei Renteneintritt">i</button>
+                  <span class="info-tooltip">Ein 95-%-Band beschreibt den Bereich, in dem 95 % der betrachteten Ergebnisse liegen. Es macht typische Schwankungsbreiten sichtbar.</span>
+                </span>
+              </span>
+              <strong id="final-range" class="summary-value-compact">-</strong>
+            </article>
+            <article class="summary-card">
+              <span class="summary-label label-with-info">
+                <span>Ø jährliche Förderung inkl. Steuervorteil</span>
+                <span class="info-wrap">
+                  <button class="info-button" type="button" aria-label="Info zu jaehrlicher Foerderung inklusive Steuervorteil">i</button>
+                  <span class="info-tooltip">Zum Altersvorsorgedepot gehören staatliche Förderung und mögliche steuerliche Vorteile, die den Vermögensaufbau zusätzlich unterstützen können.</span>
+                </span>
+              </span>
+              <strong id="average-support">-</strong>
+            </article>
+          </div>
+
+          <section class="chart-panel">
+            <div class="chart-header">
+              <div>
+                <h3>Depotverlauf</h3>
+                <p>Depotwert und eigene Einzahlungen im Zeitverlauf. Nach dem Renteneintritt wird eine Entnahme nach der 4%-Regel berücksichtigt.</p>
+              </div>
+              <div class="chart-tools">
+                <div class="chart-toggle-row">
+                  <button id="inflation-toggle" class="chart-toggle" type="button" aria-pressed="false">
+                    Inflationsbereinigung
+                  </button>
+                  <button id="ci-toggle" class="chart-toggle active" type="button" aria-pressed="true">
+                    95%-Band
+                  </button>
+                </div>
+                <div id="chart-legend" class="chart-legend"></div>
+              </div>
+            </div>
+
+            <div id="chart-wrapper" class="chart-wrapper">
+              <svg id="chart-svg" viewBox="0 0 920 420" preserveAspectRatio="none" aria-labelledby="chart-title chart-desc" role="img">
+                <title id="chart-title">Projektion des Depotvermögens</title>
+                <desc id="chart-desc">Zeitreihe mit Depotwert, eigenen Einzahlungen, 95-Prozent-Band, Markierungen zum Renteneintritt und Entnahmen nach der 4%-Regel.</desc>
+              </svg>
+              <div id="chart-tooltip" class="chart-tooltip hidden"></div>
+            </div>
+          </section>
+
+        </section>
+
+        <section class="panel notes-panel">
+          <article class="note-card note-card-wide">
+            <section class="note-section">
+              <h3>Annahmen</h3>
+              <p>
+                Diese Vorschau zeigt, wie sich ein Altersvorsorgedepot bei gleichbleibenden monatlichen Einzahlungen entwickeln könnte. Dafür werden historische Marktphasen des MSCI World in 15-Jahres-Blöcken kombiniert und 2.500 mögliche Verläufe berechnet.
+              </p>
+              <p>
+                Direkte Förderung, Kinderförderung und der vereinfachte Steuervorteil folgen den
+                <a href="./Annahmen.md">Annahmen in diesem Projekt</a>. Nach dem Renteneintritt enden neue Einzahlungen, und aus dem angesparten Vermögen wird eine Entnahme nach der 4%-Regel modelliert. Auf Wunsch werden jährliche Produktkosten in die Projektion eingerechnet.
+              </p>
+            </section>
+            <section class="note-section">
+              <h3>Datenbasis</h3>
+              <p>
+                Die Wertentwicklung basiert auf MSCI-World-Daten von
+                <a href="https://curvo.eu/backtest/en/market-index/msci-world?currency=eur">Curvo</a>.
+                Die Inflationsdaten für Deutschland stammen aus Quellen wie
+                <a href="https://fred.stlouisfed.org/">FRED</a> und der
+                <a href="https://www.oecd.org/">OECD</a>.
+              </p>
+            </section>
+            <section class="note-section">
+              <h3>Interpretation</h3>
+              <p>
+                Die Projektion ist kein garantiertes Ergebnis und keine Steuerberatung. Sie soll helfen, Größenordnungen zu vergleichen: Depotwert, eigene Einzahlungen, mögliche Förderung und wie stark Ergebnisse je nach historischer Marktphase schwanken.
+              </p>
+            </section>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <template id="child-row-template">
+      <div class="child-row">
+        <div class="field-group">
+          <div class="child-row-header">
+            <span class="field-label child-label">Geburtsdatum Kind</span>
+            <button class="ghost-button small-button remove-child" type="button">Entfernen</button>
+          </div>
+          <div class="month-year-fields">
+            <label>
+              Monat
+              <select class="child-birth-month"></select>
+            </label>
+            <label>
+              Jahr
+              <input
+                class="child-birth-year"
+                type="number"
+                inputmode="numeric"
+                min="1900"
+                max="2050"
+                step="1"
+                placeholder="2018"
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
