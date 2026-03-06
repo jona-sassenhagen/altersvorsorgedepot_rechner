@@ -1,5 +1,5 @@
-const MARKET_DATA_PATH = "./chart-2.csv";
-const CPI_DATA_PATH = "./germany_monthly_cpi_1978_2025.csv";
+const MARKET_DATA_PATH = "./msci_world.csv";
+const CPI_DATA_PATH = "./inflation.csv";
 const BOOTSTRAP_BLOCK_MONTHS = 15 * 12;
 const SIMULATION_COUNT = 2500;
 const MAX_AGE = 90;

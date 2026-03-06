@@ -118,7 +118,7 @@ Diese Klassen sind Modellannahmen, keine gesetzlichen Tarifzonen:
 
 ## Inflationsbehandlung
 
-- Die App verwendet eine lokale monatliche deutsche CPI-Zeitreihe aus `germany_monthly_cpi_1978_2025.csv`.
+- Die App verwendet eine lokale monatliche deutsche CPI-Zeitreihe aus `inflation.csv`.
 - Wenn die Inflationsoption aktiviert ist, werden Ergebnisse in Preisen des letzten verfügbaren CPI-Monats ausgewiesen.
 - Da die CPI-Reihe derzeit bis Dezember 2025 reicht, wird für spätere Projektionsmonate in v1 die letzte verfügbare Inflationsrate fortgeschrieben.
 - Historische Kapitalmarktdaten und CPI-Daten werden monatlich zusammengeführt, damit nominale und reale Ergebnisse aus demselben Simulationspfad entstehen.
