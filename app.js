@@ -580,7 +580,7 @@ function parseCpiCsv(csvText) {
 function buildLoadedMessage(data) {
   const overlapStart = parseSeriesMonthKey(data.market.bootstrapSeries[0]?.key);
   const overlapEnd = parseSeriesMonthKey(data.market.bootstrapSeries.at(-1)?.key);
-  return `${data.market.bootstrapSeries.length} Monate mit ETF- und Inflationsdaten (${formatMonth(overlapStart)} bis ${formatMonth(overlapEnd)}).`;
+  return `${data.market.bootstrapSeries.length} Monate mit ETF- und Inflationsdaten (${formatAxisDate(overlapStart)} bis ${formatAxisDate(overlapEnd)}).`;
 }
 
 function parseSeriesMonthKey(key) {
@@ -721,6 +721,9 @@ function simulateHousehold(household, data) {
 
   const years = Math.ceil(MAX_AGE - applicantAge);
   const totalMonths = years * 12;
+  const chartYearStart = now.getFullYear();
+  const chartYearEnd = addMonths(now, totalMonths - 1).getFullYear();
+  const chartYears = chartYearEnd - chartYearStart + 1;
   const paths = {
     householdNominal: Array.from({ length: years + 1 }, () => []),
     householdReal: Array.from({ length: years + 1 }, () => []),
@@ -732,6 +735,14 @@ function simulateHousehold(household, data) {
     contributionsReal: Array.from({ length: years + 1 }, () => []),
     withdrawalsNominal: Array.from({ length: years + 1 }, () => []),
     withdrawalsReal: Array.from({ length: years + 1 }, () => []),
+  };
+  const chartPaths = {
+    householdNominal: Array.from({ length: chartYears }, () => []),
+    householdReal: Array.from({ length: chartYears }, () => []),
+    contributionsNominal: Array.from({ length: chartYears }, () => []),
+    contributionsReal: Array.from({ length: chartYears }, () => []),
+    withdrawalsNominal: Array.from({ length: chartYears }, () => []),
+    withdrawalsReal: Array.from({ length: chartYears }, () => []),
   };
 
   let aggregateSupport = 0;
@@ -753,6 +764,15 @@ function simulateHousehold(household, data) {
       paths.contributionsReal[yearIndex].push(path.householdContributionReal[yearIndex]);
       paths.withdrawalsNominal[yearIndex].push(path.householdWithdrawalNominal[yearIndex]);
       paths.withdrawalsReal[yearIndex].push(path.householdWithdrawalReal[yearIndex]);
+    }
+
+    for (let chartIndex = 0; chartIndex < chartYears; chartIndex += 1) {
+      chartPaths.householdNominal[chartIndex].push(path.chartStats[chartIndex].nominal.household);
+      chartPaths.householdReal[chartIndex].push(path.chartStats[chartIndex].real.household);
+      chartPaths.contributionsNominal[chartIndex].push(path.chartStats[chartIndex].nominal.contributions);
+      chartPaths.contributionsReal[chartIndex].push(path.chartStats[chartIndex].real.contributions);
+      chartPaths.withdrawalsNominal[chartIndex].push(path.chartStats[chartIndex].nominal.withdrawals);
+      chartPaths.withdrawalsReal[chartIndex].push(path.chartStats[chartIndex].real.withdrawals);
     }
   }
 
@@ -782,17 +802,54 @@ function simulateHousehold(household, data) {
     });
   }
 
+  const chartStats = [];
+  for (let chartIndex = 0; chartIndex < chartYears; chartIndex += 1) {
+    const pointDate = new Date(chartYearStart + chartIndex, 0, 1);
+    chartStats.push({
+      chartIndex,
+      pointDate,
+      applicantAge: preciseAge(household.applicant.birthdate, pointDate),
+      spouseAge: household.spouse ? preciseAge(household.spouse.birthdate, pointDate) : null,
+      nominal: {
+        household: summarizeSamples(chartPaths.householdNominal[chartIndex]),
+        contributions: summarizeSamples(chartPaths.contributionsNominal[chartIndex]),
+        withdrawals: summarizeSamples(chartPaths.withdrawalsNominal[chartIndex]),
+      },
+      real: {
+        household: summarizeSamples(chartPaths.householdReal[chartIndex]),
+        contributions: summarizeSamples(chartPaths.contributionsReal[chartIndex]),
+        withdrawals: summarizeSamples(chartPaths.withdrawalsReal[chartIndex]),
+      },
+    });
+  }
+
   const retirementYear = clamp(Math.round(household.applicant.retirementAge - applicantAge), 0, years);
   const spouseRetirementYear =
     spouseAgeNow === null ? null : clamp(Math.round(household.spouse.retirementAge - spouseAgeNow), 0, years);
   const preRetirementYear = Math.max(retirementYear, spouseRetirementYear ?? retirementYear);
+  const applicantRetirementDate = retirementDateForPerson(household.applicant.birthdate, household.applicant.retirementAge);
+  const spouseRetirementDate = household.spouse
+    ? retirementDateForPerson(household.spouse.birthdate, household.spouse.retirementAge)
+    : null;
+  const retirementChartPosition = chartPositionForDate(applicantRetirementDate, chartYearStart, chartYears);
+  const spouseRetirementChartPosition = spouseRetirementDate
+    ? chartPositionForDate(spouseRetirementDate, chartYearStart, chartYears)
+    : null;
+  const preRetirementChartIndex = Math.max(
+    Math.floor(retirementChartPosition),
+    spouseRetirementChartPosition === null ? Math.floor(retirementChartPosition) : Math.floor(spouseRetirementChartPosition),
+  );
 
   return {
     years,
     yearlyStats,
+    chartStats,
     retirementYear,
     spouseRetirementYear,
     preRetirementYear,
+    retirementChartPosition,
+    spouseRetirementChartPosition,
+    preRetirementChartIndex,
     averageAnnualSupport: aggregateSupport / (SIMULATION_COUNT * years),
     hasSpouse: Boolean(household.spouse),
   };
@@ -819,6 +876,11 @@ function projectPath(household, bootstrap, now, years) {
   const householdContributionReal = [0];
   const householdWithdrawalNominal = [0];
   const householdWithdrawalReal = [0];
+  const chartYearStart = now.getFullYear();
+  const chartYearEnd = addMonths(now, bootstrap.length - 1).getFullYear();
+  const chartBuckets = Array.from({ length: chartYearEnd - chartYearStart + 1 }, (_, index) =>
+    createChartYearBucket(chartYearStart + index),
+  );
 
   let applicantAnnualContribution = 0;
   let spouseAnnualContribution = 0;
@@ -891,6 +953,16 @@ function projectPath(household, bootstrap, now, years) {
       applicantAnnualContribution = 0;
       spouseAnnualContribution = 0;
     }
+
+    const chartBucket = chartBuckets[monthDate.getFullYear() - chartYearStart];
+    const householdNominalValue = applicantValue + spouseValue;
+    chartBucket.count += 1;
+    chartBucket.nominal.household += householdNominalValue;
+    chartBucket.real.household += householdNominalValue / cumulativeInflation;
+    chartBucket.nominal.contributions += householdContributionValue;
+    chartBucket.real.contributions += householdContributionRealValue;
+    chartBucket.nominal.withdrawals += (applicantMonthlyWithdrawalReal + spouseMonthlyWithdrawalReal) * cumulativeInflation;
+    chartBucket.real.withdrawals += applicantMonthlyWithdrawalReal + spouseMonthlyWithdrawalReal;
   }
 
   while (applicantNominal.length <= years) {
@@ -917,7 +989,42 @@ function projectPath(household, bootstrap, now, years) {
     householdContributionReal,
     householdWithdrawalNominal,
     householdWithdrawalReal,
+    chartStats: chartBuckets.map(finalizeChartYearBucket),
     totalSupport,
+  };
+}
+
+function createChartYearBucket(year) {
+  return {
+    year,
+    count: 0,
+    nominal: {
+      household: 0,
+      contributions: 0,
+      withdrawals: 0,
+    },
+    real: {
+      household: 0,
+      contributions: 0,
+      withdrawals: 0,
+    },
+  };
+}
+
+function finalizeChartYearBucket(bucket) {
+  const divisor = Math.max(bucket.count, 1);
+  return {
+    pointDate: new Date(bucket.year, 0, 1),
+    nominal: {
+      household: bucket.nominal.household / divisor,
+      contributions: bucket.nominal.contributions / divisor,
+      withdrawals: bucket.nominal.withdrawals / divisor,
+    },
+    real: {
+      household: bucket.real.household / divisor,
+      contributions: bucket.real.contributions / divisor,
+      withdrawals: bucket.real.withdrawals / divisor,
+    },
   };
 }
 
@@ -1039,8 +1146,15 @@ function addMonths(date, months) {
   return copy;
 }
 
-function formatMonth(date) {
-  return date.toLocaleDateString("de-DE", { month: "short", year: "numeric" });
+function retirementDateForPerson(birthdate, retirementAge) {
+  const retirementDate = new Date(birthdate);
+  retirementDate.setFullYear(retirementDate.getFullYear() + retirementAge);
+  return retirementDate;
+}
+
+function chartPositionForDate(date, chartYearStart, chartYears) {
+  const yearFraction = (date.getMonth() + 0.5) / 12;
+  return clamp(date.getFullYear() - chartYearStart + yearFraction, 0, Math.max(chartYears - 1, 0));
 }
 
 function formatAxisDate(date) {
@@ -1048,7 +1162,11 @@ function formatAxisDate(date) {
 }
 
 function formatTooltipDate(date) {
-  return date.toLocaleDateString("de-DE", { month: "long", year: "numeric" });
+  return date.toLocaleDateString("de-DE", { year: "numeric" });
+}
+
+function formatAgeYears(age) {
+  return String(Math.max(0, Math.floor(age)));
 }
 
 function seriesTypeForResult(result) {
@@ -1109,11 +1227,12 @@ function renderChart(result) {
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
   const seriesType = seriesTypeForResult(result);
-  const points = result.yearlyStats;
-  const preRetirementPoints = points.slice(0, result.preRetirementYear + 1);
+  const points = result.chartStats;
+  const preRetirementPoints = points.slice(0, result.preRetirementChartIndex + 1);
   const yAxis = buildNiceYAxis(resolveChartMaxY(preRetirementPoints, seriesType));
   const maxY = yAxis.max;
-  const xScale = (yearIndex) => margin.left + (plotWidth * yearIndex) / Math.max(result.years, 1);
+  const chartLength = Math.max(points.length - 1, 1);
+  const xScale = (chartIndex) => margin.left + (plotWidth * chartIndex) / chartLength;
   const yScale = (value) => margin.top + plotHeight - (value / maxY) * plotHeight;
 
   const gridLines = [];
@@ -1124,26 +1243,34 @@ function renderChart(result) {
   }
 
   const xTicks = [];
-  const tickCount = Math.min(isCompactChart ? 4 : 6, result.years);
+  const tickCount = Math.min(isCompactChart ? 4 : 6, Math.max(points.length - 1, 1));
   for (let tick = 0; tick <= tickCount; tick += 1) {
-    const yearIndex = Math.round((result.years * tick) / Math.max(tickCount, 1));
-    const x = xScale(yearIndex);
-    const point = points[yearIndex];
+    const chartIndex = Math.round((chartLength * tick) / Math.max(tickCount, 1));
+    const x = xScale(chartIndex);
+    const point = points[chartIndex];
     xTicks.push(`<line class="grid-line" x1="${x}" y1="${margin.top}" x2="${x}" y2="${height - margin.bottom}"></line>`);
     xTicks.push(`<text x="${x}" y="${height - 14}" text-anchor="middle">${formatAxisDate(point.pointDate)}</text>`);
   }
 
-  const bandPrePath = buildBandPath(points.slice(0, result.preRetirementYear + 1), xScale, yScale, seriesType);
-  const bandPostPath = buildBandPath(points.slice(result.preRetirementYear), xScale, yScale, seriesType);
-  const medianPrePath = buildLinePath(points.slice(0, result.preRetirementYear + 1), xScale, (point) => yScale(point[seriesType].household.median));
-  const medianPostPath = buildLinePath(points.slice(result.preRetirementYear), xScale, (point) => yScale(point[seriesType].household.median));
+  const bandPrePath = buildBandPath(points.slice(0, result.preRetirementChartIndex + 1), xScale, yScale, seriesType);
+  const bandPostPath = buildBandPath(points.slice(result.preRetirementChartIndex), xScale, yScale, seriesType);
+  const medianPrePath = buildLinePath(
+    points.slice(0, result.preRetirementChartIndex + 1),
+    xScale,
+    (point) => yScale(point[seriesType].household.median),
+  );
+  const medianPostPath = buildLinePath(
+    points.slice(result.preRetirementChartIndex),
+    xScale,
+    (point) => yScale(point[seriesType].household.median),
+  );
   const contributionsPrePath = buildLinePath(
-    points.slice(0, result.preRetirementYear + 1),
+    points.slice(0, result.preRetirementChartIndex + 1),
     xScale,
     (point) => yScale(point[seriesType].contributions.median),
   );
   const contributionsPostPath = buildLinePath(
-    points.slice(result.preRetirementYear),
+    points.slice(result.preRetirementChartIndex),
     xScale,
     (point) => yScale(point[seriesType].contributions.median),
   );
@@ -1152,10 +1279,17 @@ function renderChart(result) {
   const hoverY = hoveredPoint ? yScale(hoveredPoint[seriesType].household.median) : null;
   const hoverContributionY = hoveredPoint ? yScale(hoveredPoint[seriesType].contributions.median) : null;
 
-  const applicantMarker = markerLine(result.retirementYear, xScale, margin, plotHeight, colors.markerApplicant, "Rentenbeginn");
+  const applicantMarker = markerLine(
+    result.retirementChartPosition,
+    xScale,
+    margin,
+    plotHeight,
+    colors.markerApplicant,
+    "Rentenbeginn",
+  );
   const spouseMarker =
-    result.hasSpouse && result.spouseRetirementYear !== null
-      ? markerLine(result.spouseRetirementYear, xScale, margin, plotHeight, colors.markerSpouse, "Rente Partner")
+    result.hasSpouse && result.spouseRetirementChartPosition !== null
+      ? markerLine(result.spouseRetirementChartPosition, xScale, margin, plotHeight, colors.markerSpouse, "Rente Partner")
       : "";
 
   svg.innerHTML = `
@@ -1182,7 +1316,7 @@ function renderChart(result) {
   `;
 
   const hoverCapture = svg.querySelector("#hover-capture");
-  hoverCapture.addEventListener("pointermove", handleChartHover(result, width, margin, plotWidth));
+  hoverCapture.addEventListener("pointermove", handleChartHover(result, width, margin, plotWidth, chartLength));
   hoverCapture.addEventListener("pointerleave", () => {
     hoverState = null;
     elements.chartTooltip.classList.add("hidden");
@@ -1195,13 +1329,13 @@ function renderChart(result) {
   }
 }
 
-function handleChartHover(result, width, margin, plotWidth) {
+function handleChartHover(result, width, margin, plotWidth, chartLength) {
   return (event) => {
     const bounds = elements.chartSvg.getBoundingClientRect();
     const x = ((event.clientX - bounds.left) / bounds.width) * width;
-    const rawYear = ((x - margin.left) / plotWidth) * result.years;
+    const rawYear = ((x - margin.left) / plotWidth) * chartLength;
     hoverState = {
-      yearIndex: clamp(Math.round(rawYear), 0, result.years),
+      yearIndex: clamp(Math.round(rawYear), 0, chartLength),
       pointerX: event.clientX - bounds.left,
       pointerY: event.clientY - bounds.top,
     };
@@ -1211,17 +1345,17 @@ function handleChartHover(result, width, margin, plotWidth) {
 }
 
 function updateTooltip(result, yearIndex, pointerX = 20, pointerY = 20) {
-  const point = result.yearlyStats[yearIndex];
+  const point = result.chartStats[yearIndex];
   const type = seriesTypeForResult(result);
   const tooltip = elements.chartTooltip;
   const contributionsLabel = contributionsLabelForResult(result);
   const lines = [
     `<strong>${formatTooltipDate(point.pointDate)}</strong>`,
-    `<span>Alter: ${NUMBER.format(point.applicantAge)}</span>`,
+    `<span>Alter: ${formatAgeYears(point.applicantAge)}</span>`,
   ];
 
   if (point.spouseAge !== null) {
-    lines.push(`<span>Alter Partner: ${NUMBER.format(point.spouseAge)}</span>`);
+    lines.push(`<span>Alter Partner: ${formatAgeYears(point.spouseAge)}</span>`);
   }
 
   lines.push(`<span>Depot Median: ${CURRENCY.format(point[type].household.median)}</span>`);
@@ -1274,10 +1408,10 @@ function buildBandPath(points, xScale, yScale, type) {
   if (points.length < 2) {
     return "";
   }
-  const upper = points.map((point) => `${xScale(point.yearIndex)},${yScale(point[type].household.p97_5)}`).join(" L ");
+  const upper = points.map((point) => `${xScale(point.chartIndex ?? point.yearIndex)},${yScale(point[type].household.p97_5)}`).join(" L ");
   const lower = [...points]
     .reverse()
-    .map((point) => `${xScale(point.yearIndex)},${yScale(point[type].household.p2_5)}`)
+    .map((point) => `${xScale(point.chartIndex ?? point.yearIndex)},${yScale(point[type].household.p2_5)}`)
     .join(" L ");
   return `M ${upper} L ${lower} Z`;
 }
@@ -1286,7 +1420,9 @@ function buildLinePath(points, xScale, ySelector) {
   if (points.length < 2) {
     return "";
   }
-  return points.map((point, index) => `${index === 0 ? "M" : "L"} ${xScale(point.yearIndex)} ${ySelector(point)}`).join(" ");
+  return points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${xScale(point.chartIndex ?? point.yearIndex)} ${ySelector(point)}`)
+    .join(" ");
 }
 
 function resolveChartMaxY(points, seriesType) {
