@@ -8,6 +8,8 @@
       name="description"
       content="Statischer Haushaltsrechner für das Altersvorsorgedepot mit lokal gespeicherten MSCI-World-EUR-Daten und 15-Jahres-Bootstraps."
     />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -28,7 +30,7 @@
         <section class="panel controls-panel">
           <div class="panel-header">
             <h2>Haushaltsdaten</h2>
-            <button id="reset-session" class="ghost-button small-button" type="button">Werte zurücksetzen</button>
+            <button id="reset-session" class="ghost-button small-button" type="button">Werte<br />zurücksetzen</button>
           </div>
 
           <form id="calculator-form" class="form-grid">
@@ -36,9 +38,9 @@
               <label class="fee-row">
                 <span class="label-with-info">
                   <span>Produktkosten pro Jahr</span>
-                  <span class="info-wrap">
+                  <span class="info-wrap" data-tooltip-key="productFee">
                     <button class="info-button" type="button" aria-label="Info zu Produktkosten">i</button>
-                    <span class="info-tooltip">Produktkosten werden laufend vom Vertragsguthaben abgezogen. Schon kleine prozentuale Kosten können den langfristigen Vermögensaufbau spürbar schmälern. Für dieses Produkt gilt hier eine Obergrenze von 1,5 % pro Jahr.</span>
+                    <span class="info-tooltip"></span>
                   </span>
                 </span>
                 <input
@@ -85,11 +87,11 @@
 
               <label class="existing-contract-row money-row">
                 <span class="label-with-info">
-                  <span class="label-desktop">Bestehender Riester-Vertrag €</span>
+                  <span class="label-desktop">Bestehender<br />Riester-Vertrag €</span>
                   <span class="label-mobile">Bestehender Riester €</span>
-                  <span class="info-wrap">
+                  <span class="info-wrap" data-tooltip-key="existingContract">
                     <button class="info-button" type="button" aria-label="Info zu bestehendem Riester">i</button>
-                    <span class="info-tooltip">Ein bestehender Riester-Vertrag kann in das Altersvorsorgedepot übertragen werden. Bereits angespartes Guthaben kann so im neuen System weiter investiert bleiben.</span>
+                    <span class="info-tooltip"></span>
                   </span>
                 </span>
                 <input
@@ -121,9 +123,9 @@
               <div class="field-group">
                 <div class="field-label label-with-info">
                   <span>Grenzsteuersatz</span>
-                  <span class="info-wrap">
+                  <span class="info-wrap" data-tooltip-key="applicantTaxRate">
                     <button class="info-button" type="button" aria-label="Info zu Grenzsteuersatz antragstellende Person">i</button>
-                    <span class="info-tooltip">Beim Altersvorsorgedepot hängt der mögliche steuerliche Vorteil davon ab, wie hoch dein persönlicher Grenzsteuersatz ist.</span>
+                    <span class="info-tooltip"></span>
                   </span>
                 </div>
                 <div id="applicant-income" class="tax-button-group" role="radiogroup" aria-label="Grenzsteuersatz antragstellende Person"></div>
@@ -178,9 +180,9 @@
                 <div class="field-group">
                   <div class="field-label label-with-info">
                     <span>Grenzsteuersatz</span>
-                    <span class="info-wrap">
+                    <span class="info-wrap" data-tooltip-key="spouseTaxRate">
                       <button class="info-button" type="button" aria-label="Info zu Grenzsteuersatz Partner">i</button>
-                      <span class="info-tooltip">Beim Altersvorsorgedepot hängt der mögliche steuerliche Vorteil davon ab, wie hoch dein persönlicher Grenzsteuersatz ist.</span>
+                      <span class="info-tooltip"></span>
                     </span>
                   </div>
                   <div id="spouse-income" class="tax-button-group" role="radiogroup" aria-label="Grenzsteuersatz Partnerin oder Partner"></div>
@@ -218,40 +220,40 @@
             <article class="summary-card">
               <span class="summary-label label-with-info">
                 <span>Ø Depotwert bei Rentenbeginn</span>
-                <span class="info-wrap">
-                  <button class="info-button" type="button" aria-label="Info zu Ø Depotwert bei Rentenbeginn">i</button>
-                  <span class="info-tooltip">Zeigt den Median der modellierten Depotwerte zum Rentenbeginn. Der Median ist der mittlere Wert einer Verteilung: 50 % der Ergebnisse liegen darunter und 50 % darüber. Wenn ein Partner einbezogen ist, bezieht sich der Wert auf das gemeinsame Depot zu dem Zeitpunkt, an dem beide im Ruhestand sind.</span>
-                </span>
+                    <span class="info-wrap" data-tooltip-key="retirementMedian">
+                      <button class="info-button" type="button" aria-label="Info zu Ø Depotwert bei Rentenbeginn">i</button>
+                      <span class="info-tooltip"></span>
+                    </span>
               </span>
               <strong id="retirement-value">-</strong>
             </article>
             <article class="summary-card">
               <span class="summary-label label-with-info">
                 <span>Ø Zusatzrente bei 4% Entnahme</span>
-                <span class="info-wrap">
-                  <button class="info-button" type="button" aria-label="Info zu Zusatzrente bei 4 Prozent Entnahme">i</button>
-                  <span class="info-tooltip">Die 4-%-Regel ist eine verbreitete Faustregel für Entnahmen aus angespartem Vermögen. Ausgangspunkt ist eine jährliche Entnahme von 4 % des Depotwerts zum Ruhestart; dieser Entnahmebetrag wird danach mit der Inflation fortgeschrieben.</span>
-                </span>
+                    <span class="info-wrap" data-tooltip-key="withdrawalRule">
+                      <button class="info-button" type="button" aria-label="Info zu Zusatzrente bei 4 Prozent Entnahme">i</button>
+                      <span class="info-tooltip"></span>
+                    </span>
               </span>
               <strong id="withdrawal-income">-</strong>
             </article>
             <article class="summary-card">
               <span class="summary-label label-with-info">
                 <span>95%-Band bei Renteneintritt</span>
-                <span class="info-wrap">
-                  <button class="info-button" type="button" aria-label="Info zu 95 Prozent Band bei Renteneintritt">i</button>
-                  <span class="info-tooltip">Ein 95-%-Band beschreibt den Bereich, in dem 95 % der betrachteten Ergebnisse liegen. Es macht typische Schwankungsbreiten sichtbar.</span>
-                </span>
+                    <span class="info-wrap" data-tooltip-key="retirementBand">
+                      <button class="info-button" type="button" aria-label="Info zu 95 Prozent Band bei Renteneintritt">i</button>
+                      <span class="info-tooltip"></span>
+                    </span>
               </span>
               <strong id="final-range">-</strong>
             </article>
             <article class="summary-card">
               <span class="summary-label label-with-info">
                 <span>Ø jährliche Förderung</span>
-                <span class="info-wrap">
-                  <button class="info-button" type="button" aria-label="Info zu Ø jährlicher Förderung">i</button>
-                  <span class="info-tooltip">Die ausgewiesene durchschnittliche jährliche Förderung umfasst die direkte Förderung inklusive Steuervorteil im vereinfachten Modell dieses Rechners.</span>
-                </span>
+                    <span class="info-wrap" data-tooltip-key="averageSupport">
+                      <button class="info-button" type="button" aria-label="Info zu Ø jährlicher Förderung">i</button>
+                      <span class="info-tooltip"></span>
+                    </span>
               </span>
               <strong id="average-support">-</strong>
             </article>
@@ -260,7 +262,7 @@
           <section class="chart-panel">
             <div class="chart-header">
               <div>
-                <h3>Depotverlauf</h3>
+                <h3>Wertentwicklung des Depots</h3>
                 <p>Depotwert und eigene Einzahlungen im Zeitverlauf. Nach dem Renteneintritt wird eine Entnahme nach der 4%-Regel angenommen.</p>
               </div>
               <div class="chart-tools">
@@ -281,6 +283,7 @@
                 <title id="chart-title">Projektion des Depotvermögens</title>
                 <desc id="chart-desc">Zeitreihe mit Depotwert, eigenen Einzahlungen, 95-Prozent-Band, Markierungen zum Renteneintritt und Entnahmen nach der 4%-Regel.</desc>
               </svg>
+              <div id="chart-loading" class="chart-loading hidden" role="status" aria-live="polite" aria-label="Berechnung laeuft">.</div>
               <div id="chart-tooltip" class="chart-tooltip hidden"></div>
             </div>
           </section>

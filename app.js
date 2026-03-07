@@ -4,8 +4,11 @@ const BOOTSTRAP_BLOCK_MONTHS = 15 * 12;
 const SIMULATION_COUNT = 2500;
 const MAX_AGE = 90;
 const DEFAULT_BIRTH_MONTH = 7;
-const DEFAULT_THEME = "light";
+const DEFAULT_THEME = "dark";
 const INPUT_RECOMPUTE_DEBOUNCE_MS = 180;
+const CHART_LOADING_FRAME_MS = 380;
+const CHART_LOADING_SEQUENCE = [".", "..", "..."];
+const MAX_CHILDREN = 25;
 const SESSION_STORAGE_KEY = "altersvorsorgedepot.session.v1";
 const LEGACY_THEME_STORAGE_KEY = "theme";
 
@@ -26,36 +29,70 @@ const INCOME_BRACKETS = [
   { id: "high", label: "42 %", rate: 0.42 },
 ];
 
+const TOOLTIPS = {
+  info: {
+    productFee:
+      "Produktkosten werden jährlich vom Depotwert abgezogen. Schon kleine prozentuale Kosten können den langfristigen Vermögensaufbau spürbar schmälern. Für dieses Produkt gilt eine gesetzliche Obergrenze von 1,5 % pro Jahr, aber gute Produkte sollten deutlich darunter liegen.",
+    existingContract:
+      "Ein bestehender Riester-Vertrag kann in das Altersvorsorgedepot übertragen werden. Bereits angespartes Guthaben kann so im neuen System weiter investiert bleiben.",
+    applicantTaxRate:
+      "Beim Altersvorsorgedepot hängt der mögliche steuerliche Vorteil davon ab, wie hoch dein persönlicher Grenzsteuersatz ist.",
+    spouseTaxRate:
+      "Beim Altersvorsorgedepot hängt der mögliche steuerliche Vorteil davon ab, wie hoch dein persönlicher Grenzsteuersatz ist.",
+    retirementMedian:
+      "Zeigt den Median der modellierten Depotwerte zum Rentenbeginn. Der Median ist der mittlere Wert einer Verteilung: 50 % der Ergebnisse liegen darunter und 50 % darüber. Wenn ein Partner einbezogen ist, bezieht sich der Wert auf das gemeinsame Depot zu dem Zeitpunkt, an dem beide im Ruhestand sind.",
+    withdrawalRule:
+      "Die 4-%-Regel ist eine verbreitete Faustregel für Entnahmen aus angespartem Vermögen. Ausgangspunkt ist eine jährliche Entnahme von 4 % des Depotwerts zum Ruhestart; dieser Entnahmebetrag wird danach mit der Inflation fortgeschrieben.",
+    retirementBand:
+      "Ein 95-%-Band beschreibt den Bereich, in dem 95 % der betrachteten Ergebnisse liegen. Es hilft, die Bandbreite möglicher Entwicklungen zu visualisieren.",
+    averageSupport:
+      "Die ausgewiesene durchschnittliche jährliche Förderung umfasst die direkte Förderung inklusive Steuervorteil im vereinfachten Modell dieses Rechners.",
+  },
+  presets: {
+    min10:
+      "10 Euro pro Monat sind der gesetzliche Mindestbeitrag für ein Altersvorsorgedepot im vorgeschlagenen Reformmodell.",
+    level100:
+      "100 Euro pro Monat sind 1.200 Euro pro Jahr. Damit wird im Entwurf die volle erste Förderstufe ausgeschöpft: 30 Prozent Grundförderung auf die ersten 1.200 Euro Eigenbeitrag.",
+    max150:
+      "150 Euro pro Monat sind 1.800 Euro pro Jahr. Damit wird im Entwurf der maximal geförderte Jahresbeitrag erreicht: 1.200 Euro mit 30 Prozent plus weitere 600 Euro mit 20 Prozent.",
+    high570:
+      "570 Euro pro Monat sind 6.840 Euro pro Jahr. Im BMF-Entwurf ist das die genannte Obergrenze, bis zu der Beiträge in der Ansparphase steuerfrei bleiben; zusätzliche proportionale Förderung gibt es aber nur bis 1.800 Euro pro Jahr.",
+  },
+  chart: {
+    ageLabel: "Alter",
+    spouseAgeLabel: "Alter Partner",
+    medianLabel: "Depot Median",
+    bandLabel: "95%-Band",
+  },
+};
+
 const CONTRIBUTION_PRESETS = [
   {
     label: "Min 10",
     value: 10,
-    tooltip: "10 Euro pro Monat sind der gesetzliche Mindestbeitrag für ein Altersvorsorgedepot im vorgeschlagenen Reformmodell.",
+    tooltipKey: "min10",
   },
   {
     label: "Förderstufe 100",
     value: 100,
-    tooltip:
-      "100 Euro pro Monat sind 1.200 Euro pro Jahr. Damit wird im Entwurf die volle erste Förderstufe ausgeschöpft: 30 Prozent Grundförderung auf die ersten 1.200 Euro Eigenbeitrag.",
+    tooltipKey: "level100",
   },
   {
     label: "Max Förderung 150",
     value: 150,
-    tooltip:
-      "150 Euro pro Monat sind 1.800 Euro pro Jahr. Damit wird im Entwurf der maximal geförderte Jahresbeitrag erreicht: 1.200 Euro mit 30 Prozent plus weitere 600 Euro mit 20 Prozent.",
+    tooltipKey: "max150",
   },
   {
     label: "Hoch 570",
     value: 570,
-    tooltip:
-      "570 Euro pro Monat sind 6.840 Euro pro Jahr. Im BMF-Entwurf ist das die genannte Obergrenze, bis zu der Beiträge in der Ansparphase steuerfrei bleiben; zusätzliche proportionale Förderung gibt es aber nur bis 1.800 Euro pro Jahr.",
+    tooltipKey: "high570",
   },
 ];
 
 const colors = {
-  markerApplicant: "#bc7a3c",
-  markerSpouse: "#8d63d2",
-  contributions: "#2e8f9a",
+  markerApplicant: "#d4a853",
+  markerSpouse: "#a07ccc",
+  contributions: "#5a94a8",
 };
 
 const hasDom = typeof document !== "undefined";
@@ -91,6 +128,7 @@ const elements = hasDom
       finalRange: document.querySelector("#final-range"),
       averageSupport: document.querySelector("#average-support"),
       rerunSimulationsButton: document.querySelector("#rerun-simulations"),
+      chartLoading: document.querySelector("#chart-loading"),
       chartSvg: document.querySelector("#chart-svg"),
       chartTooltip: document.querySelector("#chart-tooltip"),
       chartWrapper: document.querySelector("#chart-wrapper"),
@@ -106,6 +144,8 @@ let simulationWorker = null;
 let activeSimulationRequest = null;
 let latestChartState = null;
 let latestChartRenderState = null;
+let chartLoadingTimer = null;
+let chartLoadingStep = 0;
 let hoverState = null;
 const uiState = {
   adjustInflation: true,
@@ -120,6 +160,7 @@ if (hasDom) {
 async function initialize() {
   const savedSession = loadSession();
   applyTheme(savedSession?.theme || localStorage.getItem(LEGACY_THEME_STORAGE_KEY) || preferredTheme());
+  populateInfoTooltips();
   buildIncomeButtons(elements.applicantIncome);
   buildIncomeButtons(elements.spouseIncome);
   seedDefaults();
@@ -128,9 +169,11 @@ async function initialize() {
   wireEvents();
   syncChartToggleButtons();
   syncSpouseSection();
+  syncAddChildButton();
   saveSession();
 
   try {
+    // Both datasets are required before the first calculation can run, so load them together.
     const [marketCsv, cpiCsv] = await Promise.all([fetchText(MARKET_DATA_PATH), fetchText(CPI_DATA_PATH)]);
     const inflation = parseCpiCsv(cpiCsv);
     const market = parseMarketCsv(marketCsv, inflation);
@@ -185,6 +228,8 @@ function cancelActiveSimulationRequest() {
     return;
   }
 
+  // The UI always renders only the newest request. Cancelling here prevents stale worker results
+  // from racing the latest input state back onto the screen.
   const { reject } = activeSimulationRequest;
   activeSimulationRequest = null;
   teardownSimulationWorker();
@@ -326,12 +371,13 @@ function buildContributionPresets() {
     row.innerHTML = "";
     const target = document.querySelector(`#${row.dataset.target}`);
     for (const preset of CONTRIBUTION_PRESETS) {
+      const tooltip = TOOLTIPS.presets[preset.tooltipKey];
       const button = document.createElement("button");
       button.type = "button";
       button.className = "preset-button";
       button.textContent = preset.label;
-      button.title = preset.tooltip;
-      button.setAttribute("aria-label", `${preset.label}: ${preset.tooltip}`);
+      button.title = tooltip;
+      button.setAttribute("aria-label", `${preset.label}: ${tooltip}`);
       button.addEventListener("click", () => {
         target.value = preset.value;
         saveSession();
@@ -339,6 +385,18 @@ function buildContributionPresets() {
       });
       row.append(button);
     }
+  }
+}
+
+function populateInfoTooltips() {
+  for (const wrap of document.querySelectorAll(".info-wrap[data-tooltip-key]")) {
+    const tooltipText = TOOLTIPS.info[wrap.dataset.tooltipKey];
+    const tooltipElement = wrap.querySelector(".info-tooltip");
+    if (!tooltipText || !tooltipElement) {
+      continue;
+    }
+
+    tooltipElement.textContent = tooltipText;
   }
 }
 
@@ -398,6 +456,10 @@ function wireEvents() {
 }
 
 function addChildRow(initialValue = "") {
+  if (elements.childrenList.querySelectorAll(".child-row").length >= MAX_CHILDREN) {
+    return;
+  }
+
   const fragment = elements.childTemplate.content.cloneNode(true);
   const row = fragment.querySelector(".child-row");
   const yearInput = fragment.querySelector(".child-birth-year");
@@ -409,6 +471,7 @@ function addChildRow(initialValue = "") {
     row.remove();
     syncChildLabels();
     syncChildrenHint();
+    syncAddChildButton();
     saveSession();
     runCalculation();
   });
@@ -422,6 +485,7 @@ function addChildRow(initialValue = "") {
   elements.childrenList.append(fragment);
   syncChildLabels();
   syncChildrenHint();
+  syncAddChildButton();
 }
 
 function scheduleCalculation() {
@@ -437,6 +501,7 @@ function scheduleCalculation() {
 function clearChildren() {
   elements.childrenList.innerHTML = "";
   syncChildrenHint();
+  syncAddChildButton();
 }
 
 function syncChildLabels() {
@@ -455,16 +520,17 @@ function syncChildrenHint() {
   elements.childrenHint.classList.toggle("hidden", !hasChildren);
 }
 
+function syncAddChildButton() {
+  elements.addChildButton.disabled = elements.childrenList.querySelectorAll(".child-row").length >= MAX_CHILDREN;
+}
+
 function toRoman(value) {
+  if (!Number.isInteger(value) || value < 1 || value > MAX_CHILDREN) {
+    throw new RangeError(`toRoman only supports integers from 1 to ${MAX_CHILDREN}`);
+  }
+
   const numerals = [
-    { value: 1000, numeral: "M" },
-    { value: 900, numeral: "CM" },
-    { value: 500, numeral: "D" },
-    { value: 400, numeral: "CD" },
-    { value: 100, numeral: "C" },
-    { value: 90, numeral: "XC" },
-    { value: 50, numeral: "L" },
-    { value: 40, numeral: "XL" },
+    { value: 20, numeral: "XX" },
     { value: 10, numeral: "X" },
     { value: 9, numeral: "IX" },
     { value: 5, numeral: "V" },
@@ -621,6 +687,7 @@ function resetSession() {
   syncChartToggleButtons();
   syncSpouseSection();
   hoverState = null;
+  hideChartLoadingIndicator();
   elements.chartTooltip.classList.add("hidden");
   latestChartState = null;
   latestChartRenderState = null;
@@ -731,15 +798,49 @@ function buildDataStatusText(data, adjustInflation, options = {}) {
     return "Lokale Markt- und Inflationsdaten werden geladen…";
   }
 
-  const parts = [buildLoadedMessage(data), `${valueModeLabel(adjustInflation)}.`];
-  if (options.isLoading) {
-    parts.push("Berechnung laeuft…");
-  }
-  return parts.join(" ");
+  return [buildLoadedMessage(data), `${valueModeLabel(adjustInflation)}.`].join(" ");
 }
 
 function setDataStatus(options = {}) {
   elements.dataStatus.textContent = buildDataStatusText(datasets, uiState.adjustInflation, options);
+}
+
+function chartLoadingPatternText(step = 0) {
+  return CHART_LOADING_SEQUENCE[step % CHART_LOADING_SEQUENCE.length];
+}
+
+function showChartLoadingIndicator() {
+  if (!elements.chartLoading) {
+    return;
+  }
+
+  chartLoadingStep = 0;
+  elements.chartLoading.textContent = chartLoadingPatternText(chartLoadingStep);
+  elements.chartLoading.classList.remove("hidden");
+
+  if (chartLoadingTimer !== null) {
+    clearInterval(chartLoadingTimer);
+  }
+
+  chartLoadingTimer = window.setInterval(() => {
+    chartLoadingStep = (chartLoadingStep + 1) % CHART_LOADING_SEQUENCE.length;
+    elements.chartLoading.textContent = chartLoadingPatternText(chartLoadingStep);
+  }, CHART_LOADING_FRAME_MS);
+}
+
+function hideChartLoadingIndicator() {
+  if (!elements.chartLoading) {
+    return;
+  }
+
+  if (chartLoadingTimer !== null) {
+    clearInterval(chartLoadingTimer);
+    chartLoadingTimer = null;
+  }
+
+  chartLoadingStep = 0;
+  elements.chartLoading.classList.add("hidden");
+  elements.chartLoading.textContent = chartLoadingPatternText(chartLoadingStep);
 }
 
 function childRowShortLabel(index) {
@@ -750,6 +851,8 @@ function parseChildBirthYearInput(options) {
   const normalizedYear = String(options.yearValue ?? "").trim();
 
   if (!normalizedYear || options.hasBadInput) {
+    // Empty untouched rows are treated as placeholders rather than validation errors so the user
+    // can add a child row before deciding whether to fill it.
     if (!options.hasInteracted && !options.hasBadInput) {
       return null;
     }
@@ -869,20 +972,25 @@ function runCalculation() {
   try {
     household = readHouseholdState();
   } catch (error) {
+    hideChartLoadingIndicator();
     setDataStatus();
     showError(error.message);
     return;
   }
 
-  setDataStatus({ isLoading: true });
+  hoverState = null;
+  hideChartHover();
+  showChartLoadingIndicator();
+  setDataStatus();
+  // Token-gating makes every async calculation idempotent from the UI's perspective:
+  // only the newest completed request is allowed to update the rendered outputs.
   requestSimulation(household, token)
     .then((result) => {
       if (token !== recomputeToken) {
         return;
       }
 
-      hoverState = null;
-      hideChartHover();
+      hideChartLoadingIndicator();
       latestChartState = result;
       latestChartRenderState = null;
       saveSession();
@@ -895,6 +1003,7 @@ function runCalculation() {
         return;
       }
 
+      hideChartLoadingIndicator();
       setDataStatus();
       showError(error.message);
     });
@@ -917,6 +1026,8 @@ function simulateHousehold(household, data, options = {}) {
   const chartYearStart = now.getFullYear();
   const chartYearEnd = addMonths(now, totalMonths - 1).getFullYear();
   const chartYears = chartYearEnd - chartYearStart + 1;
+  // We keep full path samples per year so we can derive medians and percentile bands after all
+  // simulations finish, rather than committing to a single aggregate during the run.
   const paths = {
     householdNominal: Array.from({ length: years + 1 }, () => []),
     householdReal: Array.from({ length: years + 1 }, () => []),
@@ -942,6 +1053,8 @@ function simulateHousehold(household, data, options = {}) {
 
   for (let iteration = 0; iteration < resolvedSimulationCount; iteration += 1) {
     const random = mulberry32(seedForIteration(iteration, resolvedSeedOffset));
+    // The bootstrap stitches together 15-year historical blocks, preserving medium-term market
+    // regimes better than fully independent month-by-month sampling.
     const bootstrap = makeBootstrapPath(bootstrapSeries, totalMonths, random);
     const path = projectPath(household, bootstrap, now, years);
     aggregateSupport += path.totalSupport;
@@ -1092,6 +1205,8 @@ function projectPath(household, bootstrap, now, years) {
       applicantMonthlyWithdrawalReal === 0 &&
       preciseAge(household.applicant.birthdate, nextMonthDate) >= household.applicant.retirementAge
     ) {
+      // Withdrawals start once at retirement based on a 4% annualized rule in real terms and are
+      // then carried forward with inflation instead of being recalculated from future balances.
       applicantMonthlyWithdrawalReal = ((applicantValue / cumulativeInflation) * 0.04) / 12;
     }
     applicantValue = Math.max(applicantValue - applicantMonthlyWithdrawalReal * cumulativeInflation, 0);
@@ -1121,6 +1236,7 @@ function projectPath(household, bootstrap, now, years) {
     if ((monthIndex + 1) % 12 === 0) {
       const yearEndDate = addMonths(now, monthIndex + 1);
       const yearIndex = (monthIndex + 1) / 12;
+      // Support is modeled as an annual top-up after the year's contributions have been made.
       const support = annualSupportForYear(household, {
         applicantAnnualContribution,
         spouseAnnualContribution,
@@ -1240,6 +1356,8 @@ function annualSupportForYear(household, context) {
       ? 200
       : 0;
 
+  // Child support is shared in proportion to each adult's eligible contribution base so the
+  // household-level child subsidy can still be attributed back to applicant and spouse balances.
   const eligibleChildren = household.children.filter((birthdate) => preciseAge(birthdate, context.yearEndDate) < 18).length;
   const applicantEligibleChildBase = Math.min(context.applicantAnnualContribution, 1200);
   const spouseEligibleChildBase = Math.min(context.spouseAnnualContribution, 1200);
@@ -1254,6 +1372,8 @@ function annualSupportForYear(household, context) {
 
   const applicantDirect = applicantBase + applicantStarter + applicantChildSubsidy;
   const spouseDirect = spouseBase + spouseStarter + spouseChildSubsidy;
+  // The simplified tax benefit is modeled as "marginal relief minus direct subsidy", floored at
+  // zero so support is never double-counted as both grant and tax credit.
   const applicantTax = Math.max(Math.min(context.applicantAnnualContribution, 1800) * household.applicant.incomeRate - applicantDirect, 0);
   const spouseTax = household.spouse
     ? Math.max(Math.min(context.spouseAnnualContribution, 1800) * household.spouse.incomeRate - spouseDirect, 0)
@@ -1276,6 +1396,7 @@ function makeBootstrapPath(monthlyReturns, targetMonths, random) {
   const output = [];
 
   while (output.length < targetMonths) {
+    // Sample contiguous blocks with replacement to preserve serial correlation inside each block.
     const start = Math.floor(random() * (maxStart + 1));
     const block = monthlyReturns.slice(start, start + BOOTSTRAP_BLOCK_MONTHS);
     for (const item of block) {
@@ -1453,6 +1574,7 @@ function renderChart(result) {
 
   const bandPrePath = buildBandPath(points.slice(0, result.preRetirementChartIndex + 1), xScale, yScale, seriesType);
   const bandPostPath = buildBandPath(points.slice(result.preRetirementChartIndex), xScale, yScale, seriesType);
+  // Pre/post retirement segments are rendered separately so styling can switch after withdrawals start.
   const medianPrePath = buildLinePath(
     points.slice(0, result.preRetirementChartIndex + 1),
     xScale,
@@ -1529,6 +1651,7 @@ function handleChartHover(event) {
   }
 
   const bounds = elements.chartSvg.getBoundingClientRect();
+  // Hover snaps to the nearest yearly chart sample rather than interpolating between years.
   const x = ((event.clientX - bounds.left) / bounds.width) * latestChartRenderState.width;
   const rawYear = ((x - latestChartRenderState.margin.left) / latestChartRenderState.plotWidth) * latestChartRenderState.chartLength;
   hoverState = {
@@ -1582,23 +1705,25 @@ function updateTooltip(result, yearIndex, pointerX = 20, pointerY = 20) {
   const contributionsLabel = contributionsLabelForResult(result);
   const lines = [
     `<strong>${formatTooltipDate(point.pointDate)}</strong>`,
-    `<span>Alter: ${formatAgeYears(point.applicantAge)}</span>`,
+    `<span>${TOOLTIPS.chart.ageLabel}: ${formatAgeYears(point.applicantAge)}</span>`,
   ];
 
   if (point.spouseAge !== null) {
-    lines.push(`<span>Alter Partner: ${formatAgeYears(point.spouseAge)}</span>`);
+    lines.push(`<span>${TOOLTIPS.chart.spouseAgeLabel}: ${formatAgeYears(point.spouseAge)}</span>`);
   }
 
-  lines.push(`<span>Depot Median: ${CURRENCY.format(point[type].household.median)}</span>`);
+  lines.push(`<span>${TOOLTIPS.chart.medianLabel}: ${CURRENCY.format(point[type].household.median)}</span>`);
   lines.push(`<span>${contributionsLabel}: ${CURRENCY.format(point[type].contributions.median)}</span>`);
-
-  lines.push(`<span>95%-Band: ${CURRENCY.format(point[type].household.p2_5)} bis ${CURRENCY.format(point[type].household.p97_5)}</span>`);
+  lines.push(
+    `<span>${TOOLTIPS.chart.bandLabel}: ${CURRENCY.format(point[type].household.p2_5)} bis ${CURRENCY.format(point[type].household.p97_5)}</span>`,
+  );
   tooltip.innerHTML = lines.join("");
   tooltip.classList.remove("hidden");
 
   const wrapperBounds = elements.chartWrapper.getBoundingClientRect();
   const tooltipHeight = tooltip.offsetHeight;
   const tooltipWidth = tooltip.offsetWidth;
+  // Clamp the floating tooltip into the chart wrapper so it stays readable near the bottom/right edges.
   const desiredLeft = Math.min(pointerX + 22, wrapperBounds.width - tooltipWidth - 16);
   const desiredTop = Math.min(pointerY + 20, wrapperBounds.height - tooltipHeight - 16);
   tooltip.style.left = `${Math.max(16, desiredLeft)}px`;
@@ -1717,7 +1842,7 @@ function markerLine(yearIndex, xScale, margin, plotHeight, color, label, labelYO
   const labelY = margin.top + labelYOffset;
   return `
     <line class="marker-line" x1="${x}" y1="${margin.top}" x2="${x}" y2="${margin.top + plotHeight}" stroke="${color}"></line>
-    <text x="${x + 6}" y="${labelY}" fill="${color}">${label}</text>
+    <text class="marker-label" x="${x + 6}" y="${labelY}" fill="${color}">${label}</text>
   `;
 }
 
@@ -1773,6 +1898,7 @@ export {
   annualSupportForYear,
   baseSubsidy,
   buildDataStatusText,
+  chartLoadingPatternText,
   parseChildBirthYearInput,
   preciseAge,
   projectPath,
