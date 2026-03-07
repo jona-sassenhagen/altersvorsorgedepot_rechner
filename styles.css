@@ -1031,6 +1031,35 @@ button:focus-visible {
   padding: 28px;
 }
 
+.site-footer {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  margin-top: 18px;
+  padding-bottom: 12px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.site-footer a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.site-footer p {
+  margin: 0;
+  max-width: 44rem;
+  line-height: 1.4;
+}
+
+.site-footer a:hover {
+  text-decoration: underline;
+}
+
 .notes-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
