@@ -59,12 +59,8 @@
               <h3>Antragstellende Person</h3>
               <div class="inline-fields inline-fields-wide">
                 <div class="field-group birthdate-group">
-                  <span class="field-label">Geburtsdatum</span>
+                  <span class="field-label">Geburtsjahr</span>
                   <div class="month-year-fields">
-                    <label>
-                      Monat
-                      <select id="applicant-birth-month" name="applicantBirthMonth" required></select>
-                    </label>
                     <label>
                       Jahr
                       <input
@@ -142,12 +138,8 @@
 
               <div id="spouse-fields" class="conditional-section hidden">
                 <div class="field-group birthdate-group">
-                  <span class="field-label">Geburtsdatum</span>
+                  <span class="field-label">Geburtsjahr</span>
                   <div class="month-year-fields">
-                    <label>
-                      Monat
-                      <select id="spouse-birth-month" name="spouseBirthMonth"></select>
-                    </label>
                     <label>
                       Jahr
                       <input
@@ -225,9 +217,9 @@
           <div class="summary-grid">
             <article class="summary-card">
               <span class="summary-label label-with-info">
-                <span>Median zum Rentenbeginn</span>
+                <span>Ø Depotwert bei Rentenbeginn</span>
                 <span class="info-wrap">
-                  <button class="info-button" type="button" aria-label="Info zu Median zum Rentenbeginn">i</button>
+                  <button class="info-button" type="button" aria-label="Info zu Ø Depotwert bei Rentenbeginn">i</button>
                   <span class="info-tooltip">Der Median ist der mittlere Wert einer Verteilung: 50 % der Ergebnisse liegen darunter und 50 % darüber. Wenn ein Partner einbezogen ist, bezieht sich der Wert auf das gemeinsame Depot zu dem Zeitpunkt, an dem beide im Ruhestand sind.</span>
                 </span>
               </span>
@@ -251,14 +243,14 @@
                   <span class="info-tooltip">Ein 95-%-Band beschreibt den Bereich, in dem 95 % der betrachteten Ergebnisse liegen. Es macht typische Schwankungsbreiten sichtbar.</span>
                 </span>
               </span>
-              <strong id="final-range" class="summary-value-compact">-</strong>
+              <strong id="final-range">-</strong>
             </article>
             <article class="summary-card">
               <span class="summary-label label-with-info">
-                <span>Ø jährliche Förderung inkl. Steuervorteil</span>
+                <span>Ø jährliche Förderung</span>
                 <span class="info-wrap">
-                  <button class="info-button" type="button" aria-label="Info zu jaehrlicher Foerderung inklusive Steuervorteil">i</button>
-                  <span class="info-tooltip">Zum Altersvorsorgedepot gehören staatliche Förderung und mögliche steuerliche Vorteile, die den Vermögensaufbau zusätzlich unterstützen können.</span>
+                  <button class="info-button" type="button" aria-label="Info zu Ø jährlicher Förderung">i</button>
+                  <span class="info-tooltip">Die ausgewiesene durchschnittliche jährliche Förderung umfasst die direkte Förderung inklusive Steuervorteil im vereinfachten Modell dieses Rechners.</span>
                 </span>
               </span>
               <strong id="average-support">-</strong>
@@ -269,7 +261,7 @@
             <div class="chart-header">
               <div>
                 <h3>Depotverlauf</h3>
-                <p>Depotwert und eigene Einzahlungen im Zeitverlauf. Nach dem Renteneintritt wird eine Entnahme nach der 4%-Regel berücksichtigt.</p>
+                <p>Depotwert und eigene Einzahlungen im Zeitverlauf. Nach dem Renteneintritt wird eine Entnahme nach der 4%-Regel angenommen.</p>
               </div>
               <div class="chart-tools">
                 <div class="chart-toggle-row">
@@ -332,14 +324,10 @@
       <div class="child-row">
         <div class="field-group">
           <div class="child-row-header">
-            <span class="field-label child-label">Geburtsdatum Kind</span>
+            <span class="field-label child-label">Geburtsjahr Kind</span>
             <button class="ghost-button small-button remove-child" type="button">Entfernen</button>
           </div>
           <div class="month-year-fields">
-            <label>
-              Monat
-              <select class="child-birth-month"></select>
-            </label>
             <label>
               Jahr
               <input

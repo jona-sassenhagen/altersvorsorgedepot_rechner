@@ -3,6 +3,7 @@ const CPI_DATA_PATH = "./inflation.csv";
 const BOOTSTRAP_BLOCK_MONTHS = 15 * 12;
 const SIMULATION_COUNT = 2500;
 const MAX_AGE = 90;
+const DEFAULT_BIRTH_MONTH = 7;
 const DEFAULT_THEME = "light";
 const INPUT_RECOMPUTE_DEBOUNCE_MS = 180;
 const SESSION_STORAGE_KEY = "altersvorsorgedepot.session.v1";
@@ -26,10 +27,29 @@ const INCOME_BRACKETS = [
 ];
 
 const CONTRIBUTION_PRESETS = [
-  { label: "Min 10", value: 10 },
-  { label: "Förderstufe 100", value: 100 },
-  { label: "Max Förderung 150", value: 150 },
-  { label: "Hoch 570", value: 570 },
+  {
+    label: "Min 10",
+    value: 10,
+    tooltip: "10 Euro pro Monat sind der gesetzliche Mindestbeitrag für ein Altersvorsorgedepot im vorgeschlagenen Reformmodell.",
+  },
+  {
+    label: "Förderstufe 100",
+    value: 100,
+    tooltip:
+      "100 Euro pro Monat sind 1.200 Euro pro Jahr. Damit wird im Entwurf die volle erste Förderstufe ausgeschöpft: 30 Prozent Grundförderung auf die ersten 1.200 Euro Eigenbeitrag.",
+  },
+  {
+    label: "Max Förderung 150",
+    value: 150,
+    tooltip:
+      "150 Euro pro Monat sind 1.800 Euro pro Jahr. Damit wird im Entwurf der maximal geförderte Jahresbeitrag erreicht: 1.200 Euro mit 30 Prozent plus weitere 600 Euro mit 20 Prozent.",
+  },
+  {
+    label: "Hoch 570",
+    value: 570,
+    tooltip:
+      "570 Euro pro Monat sind 6.840 Euro pro Jahr. Im BMF-Entwurf ist das die genannte Obergrenze, bis zu der Beiträge in der Ansparphase steuerfrei bleiben; zusätzliche proportionale Förderung gibt es aber nur bis 1.800 Euro pro Jahr.",
+  },
 ];
 
 const colors = {
@@ -97,8 +117,6 @@ if (hasDom) {
 async function initialize() {
   const savedSession = loadSession();
   applyTheme(savedSession?.theme || localStorage.getItem(LEGACY_THEME_STORAGE_KEY) || preferredTheme());
-  populateMonthSelect(elements.applicantBirthMonth);
-  populateMonthSelect(elements.spouseBirthMonth);
   buildIncomeButtons(elements.applicantIncome);
   buildIncomeButtons(elements.spouseIncome);
   seedDefaults();
@@ -137,13 +155,11 @@ function seedDefaults() {
   uiState.adjustInflation = true;
   uiState.showConfidenceBand = true;
   uiState.hasSpouse = false;
-  elements.applicantBirthMonth.value = "6";
   elements.applicantBirthYear.value = "1990";
   elements.applicantContribution.value = "150";
   elements.existingContract.value = "0";
   elements.retirementAge.value = "67";
   elements.projectedFee.value = "0.2";
-  elements.spouseBirthMonth.value = "6";
   elements.spouseBirthYear.value = "1992";
   elements.spouseContribution.value = "150";
   elements.spouseRetirementAge.value = "67";
@@ -182,21 +198,6 @@ function setIncomeSelection(container, rateId) {
   }
 }
 
-function populateMonthSelect(select) {
-  select.innerHTML = "";
-  const placeholder = document.createElement("option");
-  placeholder.value = "";
-  placeholder.textContent = "Monat";
-  select.append(placeholder);
-
-  for (let month = 1; month <= 12; month += 1) {
-    const option = document.createElement("option");
-    option.value = String(month);
-    option.textContent = String(month);
-    select.append(option);
-  }
-}
-
 function buildContributionPresets() {
   for (const row of document.querySelectorAll(".preset-row")) {
     row.innerHTML = "";
@@ -206,6 +207,8 @@ function buildContributionPresets() {
       button.type = "button";
       button.className = "preset-button";
       button.textContent = preset.label;
+      button.title = preset.tooltip;
+      button.setAttribute("aria-label", `${preset.label}: ${preset.tooltip}`);
       button.addEventListener("click", () => {
         target.value = preset.value;
         saveSession();
@@ -274,12 +277,7 @@ function wireEvents() {
 function addChildRow(initialValue = "") {
   const fragment = elements.childTemplate.content.cloneNode(true);
   const row = fragment.querySelector(".child-row");
-  const monthSelect = fragment.querySelector(".child-birth-month");
   const yearInput = fragment.querySelector(".child-birth-year");
-  populateMonthSelect(monthSelect);
-  if (initialValue?.month) {
-    monthSelect.value = String(initialValue.month);
-  }
   if (initialValue?.year) {
     yearInput.value = String(initialValue.year);
   }
@@ -289,10 +287,6 @@ function addChildRow(initialValue = "") {
     syncChildrenHint();
     saveSession();
     runCalculation();
-  });
-  monthSelect.addEventListener("input", () => {
-    saveSession();
-    scheduleCalculation();
   });
   yearInput.addEventListener("input", () => {
     saveSession();
@@ -426,7 +420,7 @@ function setMonthYearFields(monthSelect, yearInput, birthdate) {
   if (!birthdate || typeof birthdate !== "object") {
     return;
   }
-  if (birthdate.month !== undefined) {
+  if (monthSelect && birthdate.month !== undefined) {
     monthSelect.value = String(birthdate.month);
   }
   if (birthdate.year !== undefined) {
@@ -451,14 +445,14 @@ function snapshotSession() {
     version: 1,
     theme: document.documentElement.dataset.theme || DEFAULT_THEME,
     applicant: {
-      birthdate: snapshotMonthYear(elements.applicantBirthMonth.value, elements.applicantBirthYear.value),
+      birthdate: snapshotMonthYear(elements.applicantBirthMonth?.value, elements.applicantBirthYear.value),
       monthlyContribution: elements.applicantContribution.value,
       initialBalance: elements.existingContract.value,
       incomeRateId: elements.applicantIncome.dataset.selectedRateId || "medium",
     },
     spouse: {
       enabled: uiState.hasSpouse,
-      birthdate: snapshotMonthYear(elements.spouseBirthMonth.value, elements.spouseBirthYear.value),
+      birthdate: snapshotMonthYear(elements.spouseBirthMonth?.value, elements.spouseBirthYear.value),
       monthlyContribution: elements.spouseContribution.value,
       retirementAge: elements.spouseRetirementAge.value,
       incomeRateId: elements.spouseIncome.dataset.selectedRateId || "medium",
@@ -480,7 +474,7 @@ function snapshotSession() {
 
 function snapshotMonthYear(monthValue, yearValue) {
   return {
-    month: monthValue ? Number(monthValue) : "",
+    month: monthValue ? Number(monthValue) : DEFAULT_BIRTH_MONTH,
     year: yearValue ? Number(yearValue) : "",
   };
 }
@@ -599,9 +593,9 @@ function clearError() {
 }
 
 function readHouseholdState() {
-  const applicantBirthdate = parseMonthYearInput(elements.applicantBirthMonth.value, elements.applicantBirthYear.value);
+  const applicantBirthdate = parseMonthYearInput(elements.applicantBirthMonth?.value, elements.applicantBirthYear.value);
   const spouseBirthdate = uiState.hasSpouse
-    ? parseMonthYearInput(elements.spouseBirthMonth.value, elements.spouseBirthYear.value)
+    ? parseMonthYearInput(elements.spouseBirthMonth?.value, elements.spouseBirthYear.value)
     : null;
   const retirementAge = clamp(Number(elements.retirementAge.value) || 67, 50, 75);
   const spouseRetirementAge = clamp(Number(elements.spouseRetirementAge.value) || 67, 50, 75);
@@ -646,11 +640,11 @@ function readHouseholdState() {
 }
 
 function parseMonthYearInput(monthValue, yearValue) {
-  if (!monthValue || !yearValue) {
+  if (!yearValue) {
     return null;
   }
   const year = Number(yearValue);
-  const month = Number(monthValue);
+  const month = monthValue ? Number(monthValue) : DEFAULT_BIRTH_MONTH;
   if (!Number.isFinite(year) || !Number.isFinite(month)) {
     return null;
   }
@@ -1380,7 +1374,7 @@ function renderLegend(result) {
   const items = [
     { label: "Depotwert", color: "var(--accent)" },
     { label: contributionsLabel, color: colors.contributions },
-    { label: "Rentenbeginn Antrag", color: colors.markerApplicant },
+    { label: "Rentenbeginn", color: colors.markerApplicant },
     { label: valueMode, color: "var(--accent-strong)" },
   ];
 
