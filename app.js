@@ -102,7 +102,10 @@ let datasets = null;
 let recomputeToken = 0;
 let recomputeTimer = null;
 let simulationSeedOffset = 0;
+let simulationWorker = null;
+let activeSimulationRequest = null;
 let latestChartState = null;
+let latestChartRenderState = null;
 let hoverState = null;
 const uiState = {
   adjustInflation: true,
@@ -135,12 +138,132 @@ async function initialize() {
       market,
       inflation,
     };
-    elements.dataStatus.textContent = buildLoadedMessage(datasets);
+    ensureSimulationWorker();
+    setDataStatus();
     runCalculation();
   } catch (error) {
     showError(error.message);
     elements.dataStatus.textContent = "Lokale Daten konnten nicht geladen werden.";
   }
+}
+
+function ensureSimulationWorker() {
+  if (!hasDom || typeof Worker === "undefined" || simulationWorker) {
+    return simulationWorker;
+  }
+
+  try {
+    simulationWorker = new Worker(new URL("./simulation-worker.js", import.meta.url), { type: "module" });
+    simulationWorker.addEventListener("message", handleSimulationWorkerMessage);
+    simulationWorker.addEventListener("error", handleSimulationWorkerError);
+  } catch {
+    simulationWorker = null;
+  }
+
+  return simulationWorker;
+}
+
+function teardownSimulationWorker() {
+  if (!simulationWorker) {
+    return;
+  }
+
+  simulationWorker.removeEventListener("message", handleSimulationWorkerMessage);
+  simulationWorker.removeEventListener("error", handleSimulationWorkerError);
+  simulationWorker.terminate();
+  simulationWorker = null;
+}
+
+function createCancelledSimulationError() {
+  const error = new Error("Berechnung abgebrochen.");
+  error.name = "CancelledSimulationError";
+  return error;
+}
+
+function cancelActiveSimulationRequest() {
+  if (!activeSimulationRequest) {
+    return;
+  }
+
+  const { reject } = activeSimulationRequest;
+  activeSimulationRequest = null;
+  teardownSimulationWorker();
+  reject(createCancelledSimulationError());
+}
+
+function handleSimulationWorkerMessage(event) {
+  const { error, requestId, result } = event.data ?? {};
+  if (!activeSimulationRequest || activeSimulationRequest.requestId !== requestId) {
+    return;
+  }
+
+  const { reject, resolve } = activeSimulationRequest;
+  activeSimulationRequest = null;
+  if (error) {
+    reject(new Error(error));
+    return;
+  }
+  resolve(result);
+}
+
+function handleSimulationWorkerError() {
+  if (!activeSimulationRequest) {
+    teardownSimulationWorker();
+    return;
+  }
+
+  const request = activeSimulationRequest;
+  activeSimulationRequest = null;
+  teardownSimulationWorker();
+
+  try {
+    const result = simulateHousehold(request.household, datasets, request.options);
+    request.resolve(result);
+  } catch (error) {
+    request.reject(error);
+  }
+}
+
+function waitForNextFrame() {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+}
+
+function requestSimulation(household, token) {
+  const options = {
+    maxAge: MAX_AGE,
+    now: new Date(),
+    simulationCount: SIMULATION_COUNT,
+    simulationSeedOffset,
+  };
+  const worker = ensureSimulationWorker();
+
+  if (!worker) {
+    return waitForNextFrame().then(() => {
+      if (token !== recomputeToken) {
+        throw createCancelledSimulationError();
+      }
+      return simulateHousehold(household, datasets, options);
+    });
+  }
+
+  return new Promise((resolve, reject) => {
+    activeSimulationRequest = {
+      household,
+      options,
+      reject,
+      requestId: token,
+      resolve,
+    };
+
+    worker.postMessage({
+      bootstrapSeries: datasets.market.bootstrapSeries,
+      household,
+      options,
+      requestId: token,
+    });
+  });
 }
 
 function preferredTheme() {
@@ -278,6 +401,7 @@ function addChildRow(initialValue = "") {
   const fragment = elements.childTemplate.content.cloneNode(true);
   const row = fragment.querySelector(".child-row");
   const yearInput = fragment.querySelector(".child-birth-year");
+  row.dataset.hasInteracted = initialValue?.year ? "true" : "false";
   if (initialValue?.year) {
     yearInput.value = String(initialValue.year);
   }
@@ -289,6 +413,9 @@ function addChildRow(initialValue = "") {
     runCalculation();
   });
   yearInput.addEventListener("input", () => {
+    if (yearInput.value.trim() !== "" || yearInput.validity.badInput) {
+      row.dataset.hasInteracted = "true";
+    }
     saveSession();
     scheduleCalculation();
   });
@@ -319,7 +446,7 @@ function syncChildLabels() {
     if (!label) {
       return;
     }
-    label.textContent = index === 0 ? "Geburtsdatum Kind" : `Geburtsdatum Kind ${toRoman(index + 1)}`;
+    label.textContent = index === 0 ? "Kind" : `Kind ${toRoman(index + 1)}`;
   });
 }
 
@@ -486,6 +613,7 @@ function saveSession() {
 }
 
 function resetSession() {
+  cancelActiveSimulationRequest();
   localStorage.removeItem(SESSION_STORAGE_KEY);
   localStorage.removeItem(LEGACY_THEME_STORAGE_KEY);
   applyTheme(preferredTheme());
@@ -495,8 +623,10 @@ function resetSession() {
   hoverState = null;
   elements.chartTooltip.classList.add("hidden");
   latestChartState = null;
+  latestChartRenderState = null;
   saveSession();
   if (datasets) {
+    setDataStatus();
     runCalculation();
   }
 }
@@ -592,6 +722,53 @@ function clearError() {
   elements.errorBanner.textContent = "";
 }
 
+function valueModeLabel(adjustInflation) {
+  return adjustInflation ? "Inflationsbereinigt" : "Nominal";
+}
+
+function buildDataStatusText(data, adjustInflation, options = {}) {
+  if (!data) {
+    return "Lokale Markt- und Inflationsdaten werden geladen…";
+  }
+
+  const parts = [buildLoadedMessage(data), `${valueModeLabel(adjustInflation)}.`];
+  if (options.isLoading) {
+    parts.push("Berechnung laeuft…");
+  }
+  return parts.join(" ");
+}
+
+function setDataStatus(options = {}) {
+  elements.dataStatus.textContent = buildDataStatusText(datasets, uiState.adjustInflation, options);
+}
+
+function childRowShortLabel(index) {
+  return index === 0 ? "Kind" : `Kind ${toRoman(index + 1)}`;
+}
+
+function parseChildBirthYearInput(options) {
+  const normalizedYear = String(options.yearValue ?? "").trim();
+
+  if (!normalizedYear || options.hasBadInput) {
+    if (!options.hasInteracted && !options.hasBadInput) {
+      return null;
+    }
+    throw new Error(`Bitte ein gueltiges Geburtsjahr fuer ${options.rowLabel} eingeben oder die Zeile entfernen.`);
+  }
+
+  const numericYear = Number(normalizedYear);
+  if (!Number.isInteger(numericYear)) {
+    throw new Error(`Bitte ein gueltiges Geburtsjahr fuer ${options.rowLabel} zwischen 1900 und 2050 eingeben.`);
+  }
+
+  const birthdate = parseMonthYearInput(undefined, String(numericYear));
+  if (!birthdate) {
+    throw new Error(`Bitte ein gueltiges Geburtsjahr fuer ${options.rowLabel} zwischen 1900 und 2050 eingeben.`);
+  }
+
+  return birthdate;
+}
+
 function readHouseholdState() {
   const applicantBirthdate = parseMonthYearInput(elements.applicantBirthMonth?.value, elements.applicantBirthYear.value);
   const spouseBirthdate = uiState.hasSpouse
@@ -610,12 +787,15 @@ function readHouseholdState() {
   }
 
   const children = Array.from(elements.childrenList.querySelectorAll(".child-row"))
-    .map((row) =>
-      parseMonthYearInput(
-        row.querySelector(".child-birth-month")?.value,
-        row.querySelector(".child-birth-year")?.value,
-      ),
-    )
+    .map((row, index) => {
+      const yearInput = row.querySelector(".child-birth-year");
+      return parseChildBirthYearInput({
+        hasBadInput: yearInput?.validity?.badInput ?? false,
+        hasInteracted: row.dataset.hasInteracted === "true",
+        rowLabel: childRowShortLabel(index),
+        yearValue: yearInput?.value,
+      });
+    })
     .filter(Boolean);
 
   return {
@@ -681,39 +861,58 @@ function runCalculation() {
     return;
   }
 
-  clearError();
-  elements.dataStatus.textContent = `${buildLoadedMessage(datasets)} Berechnung laeuft…`;
   const token = ++recomputeToken;
+  clearError();
+  cancelActiveSimulationRequest();
+  let household;
 
-  requestAnimationFrame(() => {
-    if (token !== recomputeToken) {
-      return;
-    }
+  try {
+    household = readHouseholdState();
+  } catch (error) {
+    setDataStatus();
+    showError(error.message);
+    return;
+  }
 
-    try {
-      const household = readHouseholdState();
-      const result = simulateHousehold(household, datasets);
+  setDataStatus({ isLoading: true });
+  requestSimulation(household, token)
+    .then((result) => {
+      if (token !== recomputeToken) {
+        return;
+      }
+
       hoverState = null;
-      elements.chartTooltip.classList.add("hidden");
+      hideChartHover();
       latestChartState = result;
+      latestChartRenderState = null;
       saveSession();
+      setDataStatus();
       renderSummary(result, uiState.adjustInflation);
       renderChart(result);
-      elements.dataStatus.textContent = buildLoadedMessage(datasets);
-    } catch (error) {
+    })
+    .catch((error) => {
+      if (token !== recomputeToken || error?.name === "CancelledSimulationError") {
+        return;
+      }
+
+      setDataStatus();
       showError(error.message);
-    }
-  });
+    });
 }
 
-function simulateHousehold(household, data) {
-  const now = new Date();
+function simulateHousehold(household, data, options = {}) {
+  const bootstrapSeries = Array.isArray(data) ? data : data.market.bootstrapSeries;
+  const maxAge = Number.isFinite(options.maxAge) ? options.maxAge : MAX_AGE;
+  const now = options.now ? new Date(options.now) : new Date();
+  const resolvedSimulationCount = Number.isFinite(options.simulationCount) ? options.simulationCount : SIMULATION_COUNT;
+  const resolvedSeedOffset =
+    options.simulationSeedOffset === undefined ? simulationSeedOffset : Number(options.simulationSeedOffset) || 0;
   const applicantAge = preciseAge(household.applicant.birthdate, now);
-  if (applicantAge >= MAX_AGE) {
+  if (applicantAge >= maxAge) {
     throw new Error("Die antragstellende Person ist bereits 90 oder aelter. Damit gibt es keinen Projektionshorizont mehr.");
   }
 
-  const years = Math.ceil(MAX_AGE - applicantAge);
+  const years = Math.ceil(maxAge - applicantAge);
   const totalMonths = years * 12;
   const chartYearStart = now.getFullYear();
   const chartYearEnd = addMonths(now, totalMonths - 1).getFullYear();
@@ -741,9 +940,9 @@ function simulateHousehold(household, data) {
 
   let aggregateSupport = 0;
 
-  for (let iteration = 0; iteration < SIMULATION_COUNT; iteration += 1) {
-    const random = mulberry32(seedForIteration(iteration, simulationSeedOffset));
-    const bootstrap = makeBootstrapPath(data.market.bootstrapSeries, totalMonths, random);
+  for (let iteration = 0; iteration < resolvedSimulationCount; iteration += 1) {
+    const random = mulberry32(seedForIteration(iteration, resolvedSeedOffset));
+    const bootstrap = makeBootstrapPath(bootstrapSeries, totalMonths, random);
     const path = projectPath(household, bootstrap, now, years);
     aggregateSupport += path.totalSupport;
 
@@ -844,7 +1043,7 @@ function simulateHousehold(household, data) {
     retirementChartPosition,
     spouseRetirementChartPosition,
     preRetirementChartIndex,
-    averageAnnualSupport: aggregateSupport / (SIMULATION_COUNT * years),
+    averageAnnualSupport: aggregateSupport / (resolvedSimulationCount * years),
     hasSpouse: Boolean(household.spouse),
   };
 }
@@ -1181,12 +1380,6 @@ function renderSummary(result, adjustInflation) {
     void el.offsetWidth;
     el.classList.add("value-updated");
   }
-
-  if (adjustInflation) {
-    elements.dataStatus.textContent += " Inflationsbereinigt.";
-  } else {
-    elements.dataStatus.textContent += " Nominal.";
-  }
 }
 
 function retirementSummaryValues(result, adjustInflation) {
@@ -1228,6 +1421,18 @@ function renderChart(result) {
   const chartLength = Math.max(points.length - 1, 1);
   const xScale = (chartIndex) => margin.left + (plotWidth * chartIndex) / chartLength;
   const yScale = (value) => margin.top + plotHeight - (value / maxY) * plotHeight;
+  latestChartRenderState = {
+    chartLength,
+    height,
+    margin,
+    plotHeight,
+    plotWidth,
+    result,
+    seriesType,
+    width,
+    xScale,
+    yScale,
+  };
 
   const gridLines = [];
   for (const value of yAxis.ticks) {
@@ -1268,10 +1473,6 @@ function renderChart(result) {
     xScale,
     (point) => yScale(point[seriesType].contributions.median),
   );
-  const hoveredPoint = hoverState ? points[hoverState.yearIndex] : null;
-  const hoverX = hoverState ? xScale(hoverState.yearIndex) : null;
-  const hoverY = hoveredPoint ? yScale(hoveredPoint[seriesType].household.median) : null;
-  const hoverContributionY = hoveredPoint ? yScale(hoveredPoint[seriesType].contributions.median) : null;
 
   const applicantMarker = markerLine(
     result.retirementChartPosition,
@@ -1283,7 +1484,7 @@ function renderChart(result) {
   );
   const spouseMarker =
     result.hasSpouse && result.spouseRetirementChartPosition !== null
-      ? markerLine(result.spouseRetirementChartPosition, xScale, margin, plotHeight, colors.markerSpouse, "Rente Partner")
+      ? markerLine(result.spouseRetirementChartPosition, xScale, margin, plotHeight, colors.markerSpouse, "Rente Partner", 34)
       : "";
 
   svg.innerHTML = `
@@ -1299,43 +1500,79 @@ function renderChart(result) {
     ${medianPostPath ? `<path class="median-line chart-segment-post" d="${medianPostPath}"></path>` : ""}
     ${applicantMarker}
     ${spouseMarker}
-    ${
-      hoveredPoint
-        ? `<line class="hover-line" x1="${hoverX}" y1="${margin.top}" x2="${hoverX}" y2="${height - margin.bottom}"></line>
-           <circle class="hover-dot" cx="${hoverX}" cy="${hoverY}" r="5"></circle>
-           <circle class="hover-dot contribution-dot" cx="${hoverX}" cy="${hoverContributionY}" r="4.5"></circle>`
-        : ""
-    }
+    <g id="hover-layer" class="hidden">
+      <line id="hover-line" class="hover-line" x1="0" y1="${margin.top}" x2="0" y2="${height - margin.bottom}"></line>
+      <circle id="hover-dot" class="hover-dot" cx="0" cy="0" r="5"></circle>
+      <circle id="hover-contribution-dot" class="hover-dot contribution-dot" cx="0" cy="0" r="4.5"></circle>
+    </g>
     <rect id="hover-capture" x="${margin.left}" y="${margin.top}" width="${plotWidth}" height="${plotHeight}" fill="transparent"></rect>
   `;
 
   const hoverCapture = svg.querySelector("#hover-capture");
-  hoverCapture.addEventListener("pointermove", handleChartHover(result, width, margin, plotWidth, chartLength));
+  hoverCapture.addEventListener("pointermove", handleChartHover);
   hoverCapture.addEventListener("pointerleave", () => {
     hoverState = null;
-    elements.chartTooltip.classList.add("hidden");
-    renderChart(result);
+    hideChartHover();
   });
 
   renderLegend(result);
   if (hoverState) {
-    updateTooltip(result, hoverState.yearIndex, hoverState.pointerX, hoverState.pointerY);
+    updateChartHover();
+  } else {
+    hideChartHover();
   }
 }
 
-function handleChartHover(result, width, margin, plotWidth, chartLength) {
-  return (event) => {
-    const bounds = elements.chartSvg.getBoundingClientRect();
-    const x = ((event.clientX - bounds.left) / bounds.width) * width;
-    const rawYear = ((x - margin.left) / plotWidth) * chartLength;
-    hoverState = {
-      yearIndex: clamp(Math.round(rawYear), 0, chartLength),
-      pointerX: event.clientX - bounds.left,
-      pointerY: event.clientY - bounds.top,
-    };
-    updateTooltip(result, hoverState.yearIndex, hoverState.pointerX, hoverState.pointerY);
-    renderChart(result);
+function handleChartHover(event) {
+  if (!latestChartRenderState) {
+    return;
+  }
+
+  const bounds = elements.chartSvg.getBoundingClientRect();
+  const x = ((event.clientX - bounds.left) / bounds.width) * latestChartRenderState.width;
+  const rawYear = ((x - latestChartRenderState.margin.left) / latestChartRenderState.plotWidth) * latestChartRenderState.chartLength;
+  hoverState = {
+    yearIndex: clamp(Math.round(rawYear), 0, latestChartRenderState.chartLength),
+    pointerX: event.clientX - bounds.left,
+    pointerY: event.clientY - bounds.top,
   };
+  updateChartHover();
+}
+
+function hideChartHover() {
+  const hoverLayer = elements.chartSvg?.querySelector("#hover-layer");
+  if (hoverLayer) {
+    hoverLayer.classList.add("hidden");
+  }
+  elements.chartTooltip.classList.add("hidden");
+}
+
+function updateChartHover() {
+  if (!latestChartRenderState || !hoverState) {
+    hideChartHover();
+    return;
+  }
+
+  const point = latestChartRenderState.result.chartStats[hoverState.yearIndex];
+  const hoverLayer = elements.chartSvg.querySelector("#hover-layer");
+  if (!point || !hoverLayer) {
+    hideChartHover();
+    return;
+  }
+
+  const householdValue = point[latestChartRenderState.seriesType].household.median;
+  const contributionValue = point[latestChartRenderState.seriesType].contributions.median;
+  const x = latestChartRenderState.xScale(hoverState.yearIndex);
+  const y = latestChartRenderState.yScale(householdValue);
+  const contributionY = latestChartRenderState.yScale(contributionValue);
+  hoverLayer.classList.remove("hidden");
+  elements.chartSvg.querySelector("#hover-line")?.setAttribute("x1", String(x));
+  elements.chartSvg.querySelector("#hover-line")?.setAttribute("x2", String(x));
+  elements.chartSvg.querySelector("#hover-dot")?.setAttribute("cx", String(x));
+  elements.chartSvg.querySelector("#hover-dot")?.setAttribute("cy", String(y));
+  elements.chartSvg.querySelector("#hover-contribution-dot")?.setAttribute("cx", String(x));
+  elements.chartSvg.querySelector("#hover-contribution-dot")?.setAttribute("cy", String(contributionY));
+  updateTooltip(latestChartRenderState.result, hoverState.yearIndex, hoverState.pointerX, hoverState.pointerY);
 }
 
 function updateTooltip(result, yearIndex, pointerX = 20, pointerY = 20) {
@@ -1369,13 +1606,11 @@ function updateTooltip(result, yearIndex, pointerX = 20, pointerY = 20) {
 }
 
 function renderLegend(result) {
-  const valueMode = result.adjustedForInflation ? "Reale Werte" : "Nominale Werte";
   const contributionsLabel = contributionsLabelForResult(result);
   const items = [
     { label: "Depotwert", color: "var(--accent)" },
     { label: contributionsLabel, color: colors.contributions },
     { label: "Rentenbeginn", color: colors.markerApplicant },
-    { label: valueMode, color: "var(--accent-strong)" },
   ];
 
   if (uiState.showConfidenceBand) {
@@ -1477,11 +1712,12 @@ function buildTickValues(max, step) {
   return ticks;
 }
 
-function markerLine(yearIndex, xScale, margin, plotHeight, color, label) {
+function markerLine(yearIndex, xScale, margin, plotHeight, color, label, labelYOffset = 16) {
   const x = xScale(yearIndex);
+  const labelY = margin.top + labelYOffset;
   return `
     <line class="marker-line" x1="${x}" y1="${margin.top}" x2="${x}" y2="${margin.top + plotHeight}" stroke="${color}"></line>
-    <text x="${x + 6}" y="${margin.top + 16}" fill="${color}">${label}</text>
+    <text x="${x + 6}" y="${labelY}" fill="${color}">${label}</text>
   `;
 }
 
@@ -1522,7 +1758,7 @@ function rerenderOutputs() {
   if (!latestChartState || !datasets) {
     return;
   }
-  elements.dataStatus.textContent = buildLoadedMessage(datasets);
+  setDataStatus();
   renderSummary(latestChartState, uiState.adjustInflation);
   renderChart(latestChartState);
 }
@@ -1532,4 +1768,14 @@ function syncSpouseSection() {
   elements.toggleSpouseButton.textContent = uiState.hasSpouse ? "Partner entfernen" : "Partner hinzufügen";
 }
 
-export { addMonths, annualSupportForYear, baseSubsidy, preciseAge, projectPath, retirementSummaryValues };
+export {
+  addMonths,
+  annualSupportForYear,
+  baseSubsidy,
+  buildDataStatusText,
+  parseChildBirthYearInput,
+  preciseAge,
+  projectPath,
+  retirementSummaryValues,
+  simulateHousehold,
+};

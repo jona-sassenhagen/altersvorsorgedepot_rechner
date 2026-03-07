@@ -576,6 +576,10 @@ button:focus {
   gap: 10px;
 }
 
+.children-list:empty {
+  display: none;
+}
+
 .child-row {
   display: grid;
   gap: 10px;
@@ -586,6 +590,14 @@ button:focus {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.child-birth-year-row {
+  display: grid;
+  grid-template-columns: minmax(140px, auto) minmax(0, 1fr);
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 6px;
 }
 
 .badge-row {
@@ -1034,6 +1046,10 @@ code {
   }
 
   .child-row {
+    grid-template-columns: 1fr;
+  }
+
+  .child-birth-year-row {
     grid-template-columns: 1fr;
   }
 

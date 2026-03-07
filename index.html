@@ -62,9 +62,9 @@
                   <span class="field-label">Geburtsjahr</span>
                   <div class="month-year-fields">
                     <label>
-                      Jahr
                       <input
                         id="applicant-birth-year"
+                        aria-label="Geburtsjahr antragstellende Person"
                         name="applicantBirthYear"
                         type="number"
                         inputmode="numeric"
@@ -141,9 +141,9 @@
                   <span class="field-label">Geburtsjahr</span>
                   <div class="month-year-fields">
                     <label>
-                      Jahr
                       <input
                         id="spouse-birth-year"
+                        aria-label="Geburtsjahr Partner"
                         name="spouseBirthYear"
                         type="number"
                         inputmode="numeric"
@@ -203,12 +203,12 @@
           <div class="panel-header">
             <div>
               <h2>Projektion</h2>
-              <p id="data-status">Lokale Markt- und Inflationsdaten werden geladen…</p>
+              <p id="data-status" style="white-space: pre-line">Lokale Markt- und Inflationsdaten werden geladen…</p>
             </div>
             <div class="badge-row">
               <button id="rerun-simulations" class="badge badge-button" type="button">2.500 Pfade</button>
               <span class="badge">15-Jahres-Blöcke</span>
-              <span class="badge">MSCI World EUR</span>
+              <span class="badge">MSCI World €</span>
             </div>
           </div>
 
@@ -220,7 +220,7 @@
                 <span>Ø Depotwert bei Rentenbeginn</span>
                 <span class="info-wrap">
                   <button class="info-button" type="button" aria-label="Info zu Ø Depotwert bei Rentenbeginn">i</button>
-                  <span class="info-tooltip">Der Median ist der mittlere Wert einer Verteilung: 50 % der Ergebnisse liegen darunter und 50 % darüber. Wenn ein Partner einbezogen ist, bezieht sich der Wert auf das gemeinsame Depot zu dem Zeitpunkt, an dem beide im Ruhestand sind.</span>
+                  <span class="info-tooltip">Zeigt den Median der modellierten Depotwerte zum Rentenbeginn. Der Median ist der mittlere Wert einer Verteilung: 50 % der Ergebnisse liegen darunter und 50 % darüber. Wenn ein Partner einbezogen ist, bezieht sich der Wert auf das gemeinsame Depot zu dem Zeitpunkt, an dem beide im Ruhestand sind.</span>
                 </span>
               </span>
               <strong id="retirement-value">-</strong>
@@ -324,22 +324,25 @@
       <div class="child-row">
         <div class="field-group">
           <div class="child-row-header">
-            <span class="field-label child-label">Geburtsjahr Kind</span>
+            <span class="field-label child-label">Kind</span>
             <button class="ghost-button small-button remove-child" type="button">Entfernen</button>
           </div>
-          <div class="month-year-fields">
-            <label>
-              Jahr
-              <input
-                class="child-birth-year"
-                type="number"
-                inputmode="numeric"
-                min="1900"
-                max="2050"
-                step="1"
-                placeholder="2018"
-              />
-            </label>
+          <div class="child-birth-year-row">
+            <span class="field-label">Geburtsjahr</span>
+            <div class="month-year-fields">
+              <label>
+                <input
+                  class="child-birth-year"
+                  aria-label="Geburtsjahr Kind"
+                  type="number"
+                  inputmode="numeric"
+                  min="1900"
+                  max="2050"
+                  step="1"
+                  placeholder="2018"
+                />
+              </label>
+            </div>
           </div>
         </div>
       </div>
