@@ -3,8 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Altersvorsorgedepot-Rechner</title>
+    <title id="page-title">Altersvorsorgedepot-Rechner</title>
     <meta
+      id="page-description"
       name="description"
       content="Statischer Haushaltsrechner für das Altersvorsorgedepot mit lokal gespeicherten MSCI-World-EUR-Daten und 15-Jahres-Bootstraps."
     />
@@ -16,10 +17,22 @@
     <div class="page-shell">
       <header class="hero">
         <div class="hero-copy-block">
-          <h1>Altersvorsorgedepot-Rechner</h1>
+          <h1 data-i18n="hero.title">Altersvorsorgedepot-Rechner</h1>
         </div>
         <div class="hero-actions">
-          <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Farbschema umschalten" title="Farbschema umschalten">
+          <div class="language-switcher" role="group" aria-label="Sprache">
+            <button id="language-de" class="language-button is-active" type="button" data-language="de">DE</button>
+            <button id="language-en" class="language-button" type="button" data-language="en">EN</button>
+          </div>
+          <button
+            id="theme-toggle"
+            class="theme-toggle"
+            type="button"
+            aria-label="Farbschema umschalten"
+            title="Farbschema umschalten"
+            data-i18n-aria-label="themeToggle.label"
+            data-i18n-title="themeToggle.label"
+          >
             <span class="theme-icon theme-sun" aria-hidden="true">☀</span>
             <span class="theme-icon theme-moon" aria-hidden="true">☾</span>
           </button>
@@ -29,17 +42,17 @@
       <main class="layout">
         <section class="panel controls-panel">
           <div class="panel-header">
-            <h2>Haushaltsdaten</h2>
-            <button id="reset-session" class="ghost-button small-button" type="button">Werte<br />zurücksetzen</button>
+            <h2 data-i18n="controls.title">Haushaltsdaten</h2>
+            <button id="reset-session" class="ghost-button small-button" type="button" data-i18n-html="controls.reset">Werte<br />zurücksetzen</button>
           </div>
 
           <form id="calculator-form" class="form-grid">
             <section class="form-section">
               <label class="fee-row">
-                <span class="label-with-info">
-                  <span>Produktkosten pro Jahr</span>
+                  <span class="label-with-info">
+                  <span data-i18n="controls.productFee">Produktkosten pro Jahr</span>
                   <span class="info-wrap" data-tooltip-key="productFee">
-                    <button class="info-button" type="button" aria-label="Info zu Produktkosten">i</button>
+                    <button class="info-button" type="button" aria-label="Info zu Produktkosten" data-i18n-aria-label="aria.productFeeInfo">i</button>
                     <span class="info-tooltip"></span>
                   </span>
                 </span>
@@ -58,15 +71,16 @@
             </section>
 
             <section class="form-section">
-              <h3>Antragstellende Person</h3>
+              <h3 data-i18n="controls.applicant">Antragstellende Person</h3>
               <div class="inline-fields inline-fields-wide">
                 <div class="field-group birthdate-group">
-                  <span class="field-label">Geburtsjahr</span>
+                  <span class="field-label" data-i18n="controls.birthYear">Geburtsjahr</span>
                   <div class="month-year-fields">
                     <label>
                       <input
                         id="applicant-birth-year"
                         aria-label="Geburtsjahr antragstellende Person"
+                        data-i18n-aria-label="aria.applicantBirthYear"
                         name="applicantBirthYear"
                         type="number"
                         inputmode="numeric"
@@ -80,17 +94,17 @@
                   </div>
                 </div>
                 <label>
-                  Renteneintrittsalter
+                  <span data-i18n="controls.retirementAge">Renteneintrittsalter</span>
                   <input id="retirement-age" name="retirementAge" type="number" min="50" max="75" step="1" value="67" />
                 </label>
               </div>
 
               <label class="existing-contract-row money-row">
                 <span class="label-with-info">
-                  <span class="label-desktop">Bestehender<br />Riester-Vertrag €</span>
-                  <span class="label-mobile">Bestehender Riester €</span>
+                  <span class="label-desktop" data-i18n-html="controls.existingContractDesktop">Bestehender<br />Riester-Vertrag €</span>
+                  <span class="label-mobile" data-i18n="controls.existingContractMobile">Bestehender Riester €</span>
                   <span class="info-wrap" data-tooltip-key="existingContract">
-                    <button class="info-button" type="button" aria-label="Info zu bestehendem Riester">i</button>
+                    <button class="info-button" type="button" aria-label="Info zu bestehendem Riester" data-i18n-aria-label="aria.existingContractInfo">i</button>
                     <span class="info-tooltip"></span>
                   </span>
                 </span>
@@ -106,7 +120,7 @@
               </label>
 
               <label class="money-row">
-                <span>Monatlicher Beitrag €</span>
+                <span data-i18n="controls.monthlyContribution">Monatlicher Beitrag €</span>
                 <input
                   id="applicant-contribution"
                   name="applicantContribution"
@@ -122,30 +136,31 @@
 
               <div class="field-group">
                 <div class="field-label label-with-info">
-                  <span>Grenzsteuersatz</span>
+                  <span data-i18n="controls.marginalTaxRate">Grenzsteuersatz</span>
                   <span class="info-wrap" data-tooltip-key="applicantTaxRate">
-                    <button class="info-button" type="button" aria-label="Info zu Grenzsteuersatz antragstellende Person">i</button>
+                    <button class="info-button" type="button" aria-label="Info zu Grenzsteuersatz antragstellende Person" data-i18n-aria-label="aria.applicantTaxInfo">i</button>
                     <span class="info-tooltip"></span>
                   </span>
                 </div>
-                <div id="applicant-income" class="tax-button-group" role="radiogroup" aria-label="Grenzsteuersatz antragstellende Person"></div>
+                <div id="applicant-income" class="tax-button-group" role="radiogroup" aria-label="Grenzsteuersatz antragstellende Person" data-i18n-aria-label="aria.applicantIncomeGroup"></div>
               </div>
             </section>
 
             <section class="form-section spouse-section">
               <div class="section-heading">
-                <h3>Partner</h3>
+                <h3 data-i18n="controls.spouse">Partner</h3>
                 <button id="toggle-spouse" class="ghost-button small-button" type="button">Partner hinzufügen</button>
               </div>
 
               <div id="spouse-fields" class="conditional-section hidden">
                 <div class="field-group birthdate-group">
-                  <span class="field-label">Geburtsjahr</span>
+                  <span class="field-label" data-i18n="controls.birthYear">Geburtsjahr</span>
                   <div class="month-year-fields">
                     <label>
                       <input
                         id="spouse-birth-year"
                         aria-label="Geburtsjahr Partner"
+                        data-i18n-aria-label="aria.spouseBirthYear"
                         name="spouseBirthYear"
                         type="number"
                         inputmode="numeric"
@@ -159,7 +174,7 @@
                 </div>
 
                 <label class="money-row">
-                  <span>Monatlicher Beitrag €</span>
+                  <span data-i18n="controls.monthlyContribution">Monatlicher Beitrag €</span>
                   <input
                     id="spouse-contribution"
                     name="spouseContribution"
@@ -171,7 +186,7 @@
                 </label>
 
                 <label>
-                  Renteneintrittsalter
+                  <span data-i18n="controls.retirementAge">Renteneintrittsalter</span>
                   <input id="spouse-retirement-age" name="spouseRetirementAge" type="number" min="50" max="75" step="1" value="67" />
                 </label>
 
@@ -179,24 +194,24 @@
 
                 <div class="field-group">
                   <div class="field-label label-with-info">
-                    <span>Grenzsteuersatz</span>
+                    <span data-i18n="controls.marginalTaxRate">Grenzsteuersatz</span>
                     <span class="info-wrap" data-tooltip-key="spouseTaxRate">
-                      <button class="info-button" type="button" aria-label="Info zu Grenzsteuersatz Partner">i</button>
+                      <button class="info-button" type="button" aria-label="Info zu Grenzsteuersatz Partner" data-i18n-aria-label="aria.spouseTaxInfo">i</button>
                       <span class="info-tooltip"></span>
                     </span>
                   </div>
-                  <div id="spouse-income" class="tax-button-group" role="radiogroup" aria-label="Grenzsteuersatz Partnerin oder Partner"></div>
+                  <div id="spouse-income" class="tax-button-group" role="radiogroup" aria-label="Grenzsteuersatz Partnerin oder Partner" data-i18n-aria-label="aria.spouseIncomeGroup"></div>
                 </div>
               </div>
             </section>
 
             <section class="form-section children-section">
               <div class="section-heading">
-                <h3>Kinder</h3>
-                <button id="add-child" class="ghost-button small-button" type="button">Kind hinzufügen</button>
+                <h3 data-i18n="controls.children">Kinder</h3>
+                <button id="add-child" class="ghost-button small-button" type="button" data-i18n="controls.addChild">Kind hinzufügen</button>
               </div>
               <div id="children-list" class="children-list"></div>
-              <p id="children-hint" class="hint hidden">Kinder werden bis zum 18. Lebensjahr für die modellierte Kinderförderung berücksichtigt.</p>
+              <p id="children-hint" class="hint hidden" data-i18n="controls.childrenHint">Kinder werden bis zum 18. Lebensjahr für die modellierte Kinderförderung berücksichtigt.</p>
             </section>
           </form>
         </section>
@@ -204,12 +219,12 @@
         <section class="panel results-panel">
           <div class="panel-header">
             <div>
-              <h2>Projektion</h2>
+              <h2 data-i18n="results.title">Projektion</h2>
               <p id="data-status" style="white-space: pre-line">Lokale Markt- und Inflationsdaten werden geladen…</p>
             </div>
             <div class="badge-row">
-              <button id="rerun-simulations" class="badge badge-button" type="button">2.500 Pfade</button>
-              <span class="badge">15-Jahres-Blöcke</span>
+              <button id="rerun-simulations" class="badge badge-button" type="button" data-i18n="results.simulationCount">2.500 Pfade</button>
+              <span class="badge" data-i18n="results.blocks">15-Jahres-Blöcke</span>
               <span class="badge">MSCI World €</span>
             </div>
           </div>
@@ -219,9 +234,9 @@
           <div class="summary-grid">
             <article class="summary-card">
               <span class="summary-label label-with-info">
-                <span>Ø Depotwert bei Rentenbeginn</span>
+                <span data-i18n="results.retirementValue">Ø Depotwert bei Rentenbeginn</span>
                     <span class="info-wrap" data-tooltip-key="retirementMedian">
-                      <button class="info-button" type="button" aria-label="Info zu Ø Depotwert bei Rentenbeginn">i</button>
+                      <button class="info-button" type="button" aria-label="Info zu Ø Depotwert bei Rentenbeginn" data-i18n-aria-label="aria.retirementMedianInfo">i</button>
                       <span class="info-tooltip"></span>
                     </span>
               </span>
@@ -229,9 +244,9 @@
             </article>
             <article class="summary-card">
               <span class="summary-label label-with-info">
-                <span>Ø Zusatzrente bei 4% Entnahme</span>
+                <span data-i18n="results.withdrawalIncome">Ø Zusatzrente bei 4% Entnahme</span>
                     <span class="info-wrap" data-tooltip-key="withdrawalRule">
-                      <button class="info-button" type="button" aria-label="Info zu Zusatzrente bei 4 Prozent Entnahme">i</button>
+                      <button class="info-button" type="button" aria-label="Info zu Zusatzrente bei 4 Prozent Entnahme" data-i18n-aria-label="aria.withdrawalRuleInfo">i</button>
                       <span class="info-tooltip"></span>
                     </span>
               </span>
@@ -239,9 +254,9 @@
             </article>
             <article class="summary-card">
               <span class="summary-label label-with-info">
-                <span>95%-Band bei Renteneintritt</span>
+                <span data-i18n="results.retirementBand">95%-Band bei Renteneintritt</span>
                     <span class="info-wrap" data-tooltip-key="retirementBand">
-                      <button class="info-button" type="button" aria-label="Info zu 95 Prozent Band bei Renteneintritt">i</button>
+                      <button class="info-button" type="button" aria-label="Info zu 95 Prozent Band bei Renteneintritt" data-i18n-aria-label="aria.retirementBandInfo">i</button>
                       <span class="info-tooltip"></span>
                     </span>
               </span>
@@ -249,9 +264,9 @@
             </article>
             <article class="summary-card">
               <span class="summary-label label-with-info">
-                <span>Ø jährliche Förderung</span>
+                <span data-i18n="results.averageSupport">Ø jährliche Förderung</span>
                     <span class="info-wrap" data-tooltip-key="averageSupport">
-                      <button class="info-button" type="button" aria-label="Info zu Ø jährlicher Förderung">i</button>
+                      <button class="info-button" type="button" aria-label="Info zu Ø jährlicher Förderung" data-i18n-aria-label="aria.averageSupportInfo">i</button>
                       <span class="info-tooltip"></span>
                     </span>
               </span>
@@ -262,8 +277,8 @@
           <section class="chart-panel">
             <div class="chart-header">
               <div>
-                <h3>Wertentwicklung des Depots</h3>
-                <p>Depotwert und eigene Einzahlungen im Zeitverlauf. Nach dem Renteneintritt wird eine Entnahme nach der 4%-Regel angenommen.</p>
+                <h3 data-i18n="chart.title">Wertentwicklung des Depots</h3>
+                <p data-i18n="chart.subtitle">Depotwert und eigene Einzahlungen im Zeitverlauf. Nach dem Renteneintritt wird eine Entnahme nach der 4%-Regel angenommen.</p>
               </div>
               <div class="chart-tools">
                 <div class="chart-toggle-row">
@@ -280,10 +295,10 @@
 
             <div id="chart-wrapper" class="chart-wrapper">
               <svg id="chart-svg" viewBox="0 0 920 420" preserveAspectRatio="none" aria-labelledby="chart-title chart-desc" role="img">
-                <title id="chart-title">Projektion des Depotvermögens</title>
-                <desc id="chart-desc">Zeitreihe mit Depotwert, eigenen Einzahlungen, 95-Prozent-Band, Markierungen zum Renteneintritt und Entnahmen nach der 4%-Regel.</desc>
+                <title id="chart-title" data-i18n="chart.svgTitle">Projektion des Depotvermögens</title>
+                <desc id="chart-desc" data-i18n="chart.svgDesc">Zeitreihe mit Depotwert, eigenen Einzahlungen, 95-Prozent-Band, Markierungen zum Renteneintritt und Entnahmen nach der 4%-Regel.</desc>
               </svg>
-              <div id="chart-loading" class="chart-loading hidden" role="status" aria-live="polite" aria-label="Berechnung laeuft">.</div>
+              <div id="chart-loading" class="chart-loading hidden" role="status" aria-live="polite" aria-label="Berechnung laeuft" data-i18n-aria-label="chart.loadingAria">.</div>
               <div id="chart-tooltip" class="chart-tooltip hidden"></div>
             </div>
           </section>
@@ -293,11 +308,11 @@
         <section class="panel notes-panel">
           <article class="note-card note-card-wide">
             <section class="note-section">
-              <h3>Annahmen</h3>
-              <p>
+              <h3 data-i18n="notes.assumptionsTitle">Annahmen</h3>
+              <p data-i18n="notes.assumptionsBody1">
                 Diese Vorschau zeigt, wie sich ein Altersvorsorgedepot bei gleichbleibenden monatlichen Einzahlungen entwickeln könnte. Dafür werden historische Marktphasen des MSCI World in 15-Jahres-Blöcken kombiniert und 2.500 mögliche Verläufe berechnet.
               </p>
-              <p>
+              <p data-i18n-html="notes.assumptionsBody2">
                 Direkte Förderung, Kinderförderung und der vereinfachte Steuervorteil folgen den
                 <a href="./Annahmen.md">Annahmen in diesem Projekt</a>. Nach dem Renteneintritt enden neue Einzahlungen, und aus dem angesparten Vermögen wird eine Entnahme nach der 4%-Regel modelliert. Auf Wunsch werden jährliche Produktkosten in die Projektion eingerechnet.
                 Weitere offizielle Informationen zur Reform der privaten Altersvorsorge gibt es beim
@@ -305,8 +320,8 @@
               </p>
             </section>
             <section class="note-section">
-              <h3>Datenbasis</h3>
-              <p>
+              <h3 data-i18n="notes.dataTitle">Datenbasis</h3>
+              <p data-i18n-html="notes.dataBody">
                 Die Wertentwicklung basiert auf MSCI-World-Daten von
                 <a href="https://curvo.eu/backtest/en/market-index/msci-world?currency=eur">Curvo</a>.
                 Die Inflationsdaten für Deutschland stammen aus Quellen wie
@@ -315,8 +330,8 @@
               </p>
             </section>
             <section class="note-section">
-              <h3>Interpretation</h3>
-              <p>
+              <h3 data-i18n="notes.interpretationTitle">Interpretation</h3>
+              <p data-i18n="notes.interpretationBody">
                 Die Projektion ist kein garantiertes Ergebnis und keine Steuerberatung. Sie soll helfen, Größenordnungen zu vergleichen: Depotwert, eigene Einzahlungen, mögliche Förderung und wie stark Ergebnisse je nach historischer Marktphase schwanken.
               </p>
             </section>
@@ -326,7 +341,7 @@
 
       <footer class="site-footer">
         <a href="https://jona-sassenhagen.github.io/cv/">Jona Sassenhagen</a>
-        <p>Keine Anlage-, Steuer- oder Rechtsberatung. Alle Angaben ohne Gewähr.</p>
+        <p data-i18n="footer.disclaimer">Keine Anlage-, Steuer- oder Rechtsberatung. Alle Angaben ohne Gewähr.</p>
       </footer>
     </div>
 
@@ -338,7 +353,7 @@
             <button class="ghost-button small-button remove-child" type="button">Entfernen</button>
           </div>
           <div class="child-birth-year-row">
-            <span class="field-label">Geburtsjahr</span>
+            <span class="field-label child-birth-year-label">Geburtsjahr</span>
             <div class="month-year-fields">
               <label>
                 <input

@@ -5,86 +5,373 @@ const SIMULATION_COUNT = 2500;
 const MAX_AGE = 90;
 const DEFAULT_BIRTH_MONTH = 7;
 const DEFAULT_THEME = "dark";
+const DEFAULT_LANGUAGE = "de";
 const INPUT_RECOMPUTE_DEBOUNCE_MS = 180;
 const CHART_LOADING_FRAME_MS = 380;
 const CHART_LOADING_SEQUENCE = [".", "..", "..."];
 const MAX_CHILDREN = 25;
 const SESSION_STORAGE_KEY = "altersvorsorgedepot.session.v1";
+const SESSION_VERSION = 2;
 const LEGACY_THEME_STORAGE_KEY = "theme";
 
-const CURRENCY = new Intl.NumberFormat("de-DE", {
-  style: "currency",
-  currency: "EUR",
-  maximumFractionDigits: 0,
-});
-
-const NUMBER = new Intl.NumberFormat("de-DE", {
-  maximumFractionDigits: 1,
-});
-
 const INCOME_BRACKETS = [
-  { id: "zero", label: "0 %", rate: 0.0 },
-  { id: "low", label: "20 %", rate: 0.2 },
-  { id: "medium", label: "30 %", rate: 0.3 },
-  { id: "high", label: "42 %", rate: 0.42 },
+  { id: "zero", rate: 0.0 },
+  { id: "low", rate: 0.2 },
+  { id: "medium", rate: 0.3 },
+  { id: "high", rate: 0.42 },
 ];
 
-const TOOLTIPS = {
-  info: {
-    productFee:
-      "Produktkosten werden jährlich vom Depotwert abgezogen. Schon kleine prozentuale Kosten können den langfristigen Vermögensaufbau spürbar schmälern. Für dieses Produkt gilt eine gesetzliche Obergrenze von 1,5 % pro Jahr, aber gute Produkte sollten deutlich darunter liegen.",
-    existingContract:
-      "Ein bestehender Riester-Vertrag kann in das Altersvorsorgedepot übertragen werden. Bereits angespartes Guthaben kann so im neuen System weiter investiert bleiben.",
-    applicantTaxRate:
-      "Beim Altersvorsorgedepot hängt der mögliche steuerliche Vorteil davon ab, wie hoch dein persönlicher Grenzsteuersatz ist.",
-    spouseTaxRate:
-      "Beim Altersvorsorgedepot hängt der mögliche steuerliche Vorteil davon ab, wie hoch dein persönlicher Grenzsteuersatz ist.",
-    retirementMedian:
-      "Zeigt den Median der modellierten Depotwerte zum Rentenbeginn. Der Median ist der mittlere Wert einer Verteilung: 50 % der Ergebnisse liegen darunter und 50 % darüber. Wenn ein Partner einbezogen ist, bezieht sich der Wert auf das gemeinsame Depot zu dem Zeitpunkt, an dem beide im Ruhestand sind.",
-    withdrawalRule:
-      "Die 4-%-Regel ist eine verbreitete Faustregel für Entnahmen aus angespartem Vermögen. Ausgangspunkt ist eine jährliche Entnahme von 4 % des Depotwerts zum Ruhestart; dieser Entnahmebetrag wird danach mit der Inflation fortgeschrieben.",
-    retirementBand:
-      "Ein 95-%-Band beschreibt den Bereich, in dem 95 % der betrachteten Ergebnisse liegen. Es hilft, die Bandbreite möglicher Entwicklungen zu visualisieren.",
-    averageSupport:
-      "Die ausgewiesene durchschnittliche jährliche Förderung umfasst die direkte Förderung inklusive Steuervorteil im vereinfachten Modell dieses Rechners.",
+const TRANSLATIONS = {
+  de: {
+    locale: "de-DE",
+    htmlLang: "de",
+    meta: {
+      title: "Altersvorsorgedepot-Rechner",
+      description:
+        "Statischer Haushaltsrechner für das Altersvorsorgedepot mit lokal gespeicherten MSCI-World-EUR-Daten und 15-Jahres-Bootstraps.",
+    },
+    hero: { title: "Altersvorsorgedepot-Rechner" },
+    themeToggle: { label: "Farbschema umschalten" },
+    controls: {
+      title: "Haushaltsdaten",
+      reset: "Werte<br />zurücksetzen",
+      productFee: "Produktkosten pro Jahr",
+      applicant: "Antragstellende Person",
+      birthYear: "Geburtsjahr",
+      retirementAge: "Renteneintrittsalter",
+      existingContractDesktop: "Bestehender<br />Riester-Vertrag €",
+      existingContractMobile: "Bestehender Riester €",
+      monthlyContribution: "Monatlicher Beitrag €",
+      marginalTaxRate: "Grenzsteuersatz",
+      spouse: "Partner",
+      addSpouse: "Partner hinzufügen",
+      removeSpouse: "Partner entfernen",
+      children: "Kinder",
+      addChild: "Kind hinzufügen",
+      removeChild: "Entfernen",
+      child: "Kind",
+      childrenHint: "Kinder werden bis zum 18. Lebensjahr für die modellierte Kinderförderung berücksichtigt.",
+    },
+    results: {
+      title: "Projektion",
+      simulationCount: "2.500 Pfade",
+      blocks: "15-Jahres-Blöcke",
+      retirementValue: "Ø Depotwert bei Rentenbeginn",
+      withdrawalIncome: "Ø Zusatzrente bei 4% Entnahme",
+      retirementBand: "95%-Band bei Renteneintritt",
+      averageSupport: "Ø jährliche Förderung",
+    },
+    chart: {
+      title: "Wertentwicklung des Depots",
+      subtitle:
+        "Depotwert und eigene Einzahlungen im Zeitverlauf. Nach dem Renteneintritt wird eine Entnahme nach der 4%-Regel angenommen.",
+      svgTitle: "Projektion des Depotvermögens",
+      svgDesc:
+        "Zeitreihe mit Depotwert, eigenen Einzahlungen, 95-Prozent-Band, Markierungen zum Renteneintritt und Entnahmen nach der 4%-Regel.",
+      loadingAria: "Berechnung laeuft",
+      inflationOn: "Inflationsbereinigung an",
+      inflationOff: "Inflationsbereinigung aus",
+      confidenceBandOn: "95%-Band an",
+      confidenceBandOff: "95%-Band aus",
+      ageLabel: "Alter",
+      spouseAgeLabel: "Alter Partner",
+      medianLabel: "Depot Median",
+      bandLabel: "95%-Band",
+      legendValue: "Depotwert",
+      legendBand: "95%-Band",
+      legendRetirement: "Rentenbeginn",
+      legendSpouseRetirement: "Rentenbeginn Partner",
+    },
+    notes: {
+      assumptionsTitle: "Annahmen",
+      assumptionsBody1:
+        "Diese Vorschau zeigt, wie sich ein Altersvorsorgedepot bei gleichbleibenden monatlichen Einzahlungen entwickeln könnte. Dafür werden historische Marktphasen des MSCI World in 15-Jahres-Blöcken kombiniert und 2.500 mögliche Verläufe berechnet.",
+      assumptionsBody2:
+        'Direkte Förderung, Kinderförderung und der vereinfachte Steuervorteil folgen den <a href="./Annahmen.md">Annahmen in diesem Projekt</a>. Nach dem Renteneintritt enden neue Einzahlungen, und aus dem angesparten Vermögen wird eine Entnahme nach der 4%-Regel modelliert. Auf Wunsch werden jährliche Produktkosten in die Projektion eingerechnet. Weitere offizielle Informationen zur Reform der privaten Altersvorsorge gibt es beim <a href="https://www.bundesfinanzministerium.de/Content/DE/FAQ/reform-der-privaten-altersvorsorge.html">Bundesfinanzministerium</a>.',
+      dataTitle: "Datenbasis",
+      dataBody:
+        'Die Wertentwicklung basiert auf MSCI-World-Daten von <a href="https://curvo.eu/backtest/en/market-index/msci-world?currency=eur">Curvo</a>. Die Inflationsdaten für Deutschland stammen aus Quellen wie <a href="https://fred.stlouisfed.org/">FRED</a> und der <a href="https://www.oecd.org/">OECD</a>.',
+      interpretationTitle: "Interpretation",
+      interpretationBody:
+        "Die Projektion ist kein garantiertes Ergebnis und keine Steuerberatung. Sie soll helfen, Größenordnungen zu vergleichen: Depotwert, eigene Einzahlungen, mögliche Förderung und wie stark Ergebnisse je nach historischer Marktphase schwanken.",
+    },
+    footer: {
+      disclaimer: "Keine Anlage-, Steuer- oder Rechtsberatung. Alle Angaben ohne Gewähr.",
+    },
+    aria: {
+      productFeeInfo: "Info zu Produktkosten",
+      applicantBirthYear: "Geburtsjahr antragstellende Person",
+      existingContractInfo: "Info zu bestehendem Riester",
+      applicantTaxInfo: "Info zu Grenzsteuersatz antragstellende Person",
+      applicantIncomeGroup: "Grenzsteuersatz antragstellende Person",
+      spouseBirthYear: "Geburtsjahr Partner",
+      spouseTaxInfo: "Info zu Grenzsteuersatz Partner",
+      spouseIncomeGroup: "Grenzsteuersatz Partnerin oder Partner",
+      retirementMedianInfo: "Info zu Ø Depotwert bei Rentenbeginn",
+      withdrawalRuleInfo: "Info zu Zusatzrente bei 4 Prozent Entnahme",
+      retirementBandInfo: "Info zu 95 Prozent Band bei Renteneintritt",
+      averageSupportInfo: "Info zu Ø jährlicher Förderung",
+      childBirthYear: "Geburtsjahr Kind",
+      removeChild: "Kind entfernen",
+      languageSwitcher: "Sprache",
+    },
+    tooltips: {
+      info: {
+        productFee:
+          "Produktkosten werden jährlich vom Depotwert abgezogen. Schon kleine prozentuale Kosten können den langfristigen Vermögensaufbau spürbar schmälern. Für dieses Produkt gilt eine gesetzliche Obergrenze von 1,5 % pro Jahr, aber gute Produkte sollten deutlich darunter liegen.",
+        existingContract:
+          "Ein bestehender Riester-Vertrag kann in das Altersvorsorgedepot übertragen werden. Bereits angespartes Guthaben kann so im neuen System weiter investiert bleiben.",
+        applicantTaxRate:
+          "Beim Altersvorsorgedepot hängt der mögliche steuerliche Vorteil davon ab, wie hoch dein persönlicher Grenzsteuersatz ist.",
+        spouseTaxRate:
+          "Beim Altersvorsorgedepot hängt der mögliche steuerliche Vorteil davon ab, wie hoch dein persönlicher Grenzsteuersatz ist.",
+        retirementMedian:
+          "Zeigt den Median der modellierten Depotwerte zum Rentenbeginn. Der Median ist der mittlere Wert einer Verteilung: 50 % der Ergebnisse liegen darunter und 50 % darüber. Wenn ein Partner einbezogen ist, bezieht sich der Wert auf das gemeinsame Depot zu dem Zeitpunkt, an dem beide im Ruhestand sind.",
+        withdrawalRule:
+          "Die 4-%-Regel ist eine verbreitete Faustregel für Entnahmen aus angespartem Vermögen. Ausgangspunkt ist eine jährliche Entnahme von 4 % des Depotwerts zum Ruhestart; dieser Entnahmebetrag wird danach mit der Inflation fortgeschrieben.",
+        retirementBand:
+          "Ein 95-%-Band beschreibt den Bereich, in dem 95 % der betrachteten Ergebnisse liegen. Es hilft, die Bandbreite möglicher Entwicklungen zu visualisieren.",
+        averageSupport:
+          "Die ausgewiesene durchschnittliche jährliche Förderung umfasst die direkte Förderung inklusive Steuervorteil im vereinfachten Modell dieses Rechners.",
+      },
+      presets: {
+        min10:
+          "10 Euro pro Monat sind der gesetzliche Mindestbeitrag für ein Altersvorsorgedepot im vorgeschlagenen Reformmodell.",
+        level100:
+          "100 Euro pro Monat sind 1.200 Euro pro Jahr. Damit wird im Entwurf die volle erste Förderstufe ausgeschöpft: 30 Prozent Grundförderung auf die ersten 1.200 Euro Eigenbeitrag.",
+        max150:
+          "150 Euro pro Monat sind 1.800 Euro pro Jahr. Damit wird im Entwurf der maximal geförderte Jahresbeitrag erreicht: 1.200 Euro mit 30 Prozent plus weitere 600 Euro mit 20 Prozent.",
+        high570:
+          "570 Euro pro Monat sind 6.840 Euro pro Jahr. Im BMF-Entwurf ist das die genannte Obergrenze, bis zu der Beiträge in der Ansparphase steuerfrei bleiben; zusätzliche proportionale Förderung gibt es aber nur bis 1.800 Euro pro Jahr.",
+      },
+    },
+    status: {
+      loadingData: "Lokale Markt- und Inflationsdaten werden geladen…",
+      loadError: "Lokale Daten konnten nicht geladen werden.",
+      dataLoaded: ({ months, start, end }) => `${months} Monate mit ETF- und Inflationsdaten (${start} bis ${end}).`,
+      adjusted: "Inflationsbereinigt.",
+      nominal: "Nominal.",
+    },
+    errors: {
+      cancelledSimulation: "Berechnung abgebrochen.",
+      fetchFailed: ({ path }) => `${path} konnte nicht geladen werden.`,
+      insufficientHistory: "Zu wenig Historie fuer 15-Jahres-Bootstraps.",
+      insufficientOverlap: "Zu wenig ueberlappende Markt- und Inflationshistorie fuer 15-Jahres-Bootstraps.",
+      emptyCpi: "Die CPI-Datei enthaelt keine Werte.",
+      applicantBirthdate: "Bitte das Geburtsdatum der antragstellenden Person eingeben.",
+      spouseBirthdate: "Bitte das Geburtsdatum der Partnerperson eingeben.",
+      childBirthYearInvalid: ({ rowLabel }) => `Bitte ein gueltiges Geburtsjahr fuer ${rowLabel} eingeben oder die Zeile entfernen.`,
+      childBirthYearRange: ({ rowLabel }) => `Bitte ein gueltiges Geburtsjahr fuer ${rowLabel} zwischen 1900 und 2050 eingeben.`,
+      applicantTooOld:
+        "Die antragstellende Person ist bereits 90 oder aelter. Damit gibt es keinen Projektionshorizont mehr.",
+    },
+    presets: {
+      min10: "Min 10",
+      level100: "Förderstufe 100",
+      max150: "Max Förderung 150",
+      high570: "Hoch 570",
+    },
+    contributions: {
+      single: "Eigene Einzahlungen",
+      household: "Eigene Einzahlungen inkl. Partner",
+    },
+    markers: {
+      retirement: "Rentenbeginn",
+      spouseRetirement: "Rente Partner",
+    },
+    compactUnits: {
+      million: "Mio",
+      thousand: "Tsd",
+      range: "Tsd. €",
+      rangeSeparator: "-",
+      rangeBandSeparator: "bis",
+    },
   },
-  presets: {
-    min10:
-      "10 Euro pro Monat sind der gesetzliche Mindestbeitrag für ein Altersvorsorgedepot im vorgeschlagenen Reformmodell.",
-    level100:
-      "100 Euro pro Monat sind 1.200 Euro pro Jahr. Damit wird im Entwurf die volle erste Förderstufe ausgeschöpft: 30 Prozent Grundförderung auf die ersten 1.200 Euro Eigenbeitrag.",
-    max150:
-      "150 Euro pro Monat sind 1.800 Euro pro Jahr. Damit wird im Entwurf der maximal geförderte Jahresbeitrag erreicht: 1.200 Euro mit 30 Prozent plus weitere 600 Euro mit 20 Prozent.",
-    high570:
-      "570 Euro pro Monat sind 6.840 Euro pro Jahr. Im BMF-Entwurf ist das die genannte Obergrenze, bis zu der Beiträge in der Ansparphase steuerfrei bleiben; zusätzliche proportionale Förderung gibt es aber nur bis 1.800 Euro pro Jahr.",
-  },
-  chart: {
-    ageLabel: "Alter",
-    spouseAgeLabel: "Alter Partner",
-    medianLabel: "Depot Median",
-    bandLabel: "95%-Band",
+  en: {
+    locale: "en-US",
+    htmlLang: "en",
+    meta: {
+      title: "Retirement Savings Portfolio Calculator",
+      description:
+        "Static household calculator for the retirement savings portfolio using local MSCI World EUR data and 15-year bootstrap paths.",
+    },
+    hero: { title: "Retirement Savings Portfolio Calculator" },
+    themeToggle: { label: "Toggle color theme" },
+    controls: {
+      title: "Household details",
+      reset: "Reset<br />values",
+      productFee: "Product fee per year",
+      applicant: "Applicant",
+      birthYear: "Birth year",
+      retirementAge: "Retirement age",
+      existingContractDesktop: "Existing<br />Riester balance €",
+      existingContractMobile: "Existing Riester €",
+      monthlyContribution: "Monthly contribution €",
+      marginalTaxRate: "Marginal tax rate",
+      spouse: "Spouse",
+      addSpouse: "Add spouse",
+      removeSpouse: "Remove spouse",
+      children: "Children",
+      addChild: "Add child",
+      removeChild: "Remove",
+      child: "Child",
+      childrenHint: "Children are included in the modeled child subsidy until age 18.",
+    },
+    results: {
+      title: "Projection",
+      simulationCount: "2,500 paths",
+      blocks: "15-year blocks",
+      retirementValue: "Avg. portfolio value at retirement",
+      withdrawalIncome: "Avg. extra income at 4% withdrawal",
+      retirementBand: "95% band at retirement",
+      averageSupport: "Avg. annual subsidy",
+    },
+    chart: {
+      title: "Portfolio growth over time",
+      subtitle:
+        "Portfolio value and own contributions over time. After retirement, withdrawals are modeled using the 4% rule.",
+      svgTitle: "Projected retirement portfolio",
+      svgDesc:
+        "Time series showing portfolio value, own contributions, the 95 percent band, retirement markers, and 4 percent rule withdrawals.",
+      loadingAria: "Calculation running",
+      inflationOn: "Inflation adjustment on",
+      inflationOff: "Inflation adjustment off",
+      confidenceBandOn: "95% band on",
+      confidenceBandOff: "95% band off",
+      ageLabel: "Age",
+      spouseAgeLabel: "Spouse age",
+      medianLabel: "Median portfolio",
+      bandLabel: "95% band",
+      legendValue: "Portfolio value",
+      legendBand: "95% band",
+      legendRetirement: "Retirement",
+      legendSpouseRetirement: "Spouse retirement",
+    },
+    notes: {
+      assumptionsTitle: "Assumptions",
+      assumptionsBody1:
+        "This preview shows how a retirement savings portfolio could develop with constant monthly contributions. It combines historical MSCI World market phases in 15-year blocks and computes 2,500 possible paths.",
+      assumptionsBody2:
+        'Direct subsidies, child subsidies, and the simplified tax benefit follow the <a href="./Annahmen.md">assumptions used in this project</a>. After retirement, new contributions stop and withdrawals from the accumulated assets are modeled with the 4% rule. Annual product fees can optionally be included in the projection. More official information on the German private pension reform is available from the <a href="https://www.bundesfinanzministerium.de/Content/DE/FAQ/reform-der-privaten-altersvorsorge.html">Federal Ministry of Finance</a>.',
+      dataTitle: "Data basis",
+      dataBody:
+        'Performance is based on MSCI World data from <a href="https://curvo.eu/backtest/en/market-index/msci-world?currency=eur">Curvo</a>. German inflation data comes from sources such as <a href="https://fred.stlouisfed.org/">FRED</a> and the <a href="https://www.oecd.org/">OECD</a>.',
+      interpretationTitle: "Interpretation",
+      interpretationBody:
+        "This projection is not a guaranteed outcome and not tax advice. It is meant to help compare orders of magnitude: portfolio value, own contributions, possible subsidies, and how strongly results can vary across historical market phases.",
+    },
+    footer: {
+      disclaimer: "No investment, tax, or legal advice. No guarantee for completeness or accuracy.",
+    },
+    aria: {
+      productFeeInfo: "Info about product fees",
+      applicantBirthYear: "Applicant birth year",
+      existingContractInfo: "Info about existing Riester balance",
+      applicantTaxInfo: "Info about applicant marginal tax rate",
+      applicantIncomeGroup: "Applicant marginal tax rate",
+      spouseBirthYear: "Spouse birth year",
+      spouseTaxInfo: "Info about spouse marginal tax rate",
+      spouseIncomeGroup: "Spouse marginal tax rate",
+      retirementMedianInfo: "Info about average portfolio value at retirement",
+      withdrawalRuleInfo: "Info about extra retirement income at 4 percent withdrawal",
+      retirementBandInfo: "Info about the 95 percent band at retirement",
+      averageSupportInfo: "Info about average annual subsidy",
+      childBirthYear: "Child birth year",
+      removeChild: "Remove child",
+      languageSwitcher: "Language",
+    },
+    tooltips: {
+      info: {
+        productFee:
+          "Product fees are deducted from portfolio assets every year. Even small percentage fees can noticeably reduce long-term wealth accumulation. This product type has a statutory cap of 1.5% per year, but good products should be well below that.",
+        existingContract:
+          "An existing Riester contract can be transferred into the retirement savings portfolio. Assets already accumulated can then remain invested in the new system.",
+        applicantTaxRate:
+          "In the retirement savings portfolio, the potential tax advantage depends on your personal marginal tax rate.",
+        spouseTaxRate:
+          "In the retirement savings portfolio, the potential tax advantage depends on your personal marginal tax rate.",
+        retirementMedian:
+          "Shows the median modeled portfolio value at retirement. The median is the middle of the distribution: 50% of outcomes are below it and 50% are above it. If a spouse is included, the value refers to the joint portfolio once both people are retired.",
+        withdrawalRule:
+          "The 4% rule is a common heuristic for withdrawals from accumulated assets. It starts with an annual withdrawal of 4% of the portfolio value at retirement, and that withdrawal amount is then increased with inflation.",
+        retirementBand:
+          "A 95% band shows the range that contains 95% of the modeled outcomes. It helps visualize the spread of possible paths.",
+        averageSupport:
+          "The reported average annual subsidy includes direct subsidies plus the tax benefit in this calculator's simplified model.",
+      },
+      presets: {
+        min10:
+          "10 euros per month is the statutory minimum contribution for a retirement savings portfolio in the proposed reform model.",
+        level100:
+          "100 euros per month equals 1,200 euros per year. In the draft, that fully uses the first subsidy tier: a 30 percent base subsidy on the first 1,200 euros of own contributions.",
+        max150:
+          "150 euros per month equals 1,800 euros per year. In the draft, that reaches the maximum subsidized annual contribution: 1,200 euros at 30 percent plus another 600 euros at 20 percent.",
+        high570:
+          "570 euros per month equals 6,840 euros per year. In the Finance Ministry draft, that is the stated cap up to which contributions remain tax-free during accumulation, but proportional subsidies only apply up to 1,800 euros per year.",
+      },
+    },
+    status: {
+      loadingData: "Loading local market and inflation data…",
+      loadError: "Local data could not be loaded.",
+      dataLoaded: ({ months, start, end }) => `${months} months of ETF and inflation data (${start} to ${end}).`,
+      adjusted: "Inflation-adjusted.",
+      nominal: "Nominal.",
+    },
+    errors: {
+      cancelledSimulation: "Calculation cancelled.",
+      fetchFailed: ({ path }) => `Could not load ${path}.`,
+      insufficientHistory: "Not enough history for 15-year bootstraps.",
+      insufficientOverlap: "Not enough overlapping market and inflation history for 15-year bootstraps.",
+      emptyCpi: "The CPI file contains no values.",
+      applicantBirthdate: "Please enter the applicant's birth year.",
+      spouseBirthdate: "Please enter the spouse's birth year.",
+      childBirthYearInvalid: ({ rowLabel }) => `Please enter a valid birth year for ${rowLabel} or remove the row.`,
+      childBirthYearRange: ({ rowLabel }) => `Please enter a valid birth year for ${rowLabel} between 1900 and 2050.`,
+      applicantTooOld: "The applicant is already age 90 or older. There is no projection horizon left.",
+    },
+    presets: {
+      min10: "Min 10",
+      level100: "Tier 100",
+      max150: "Max subsidy 150",
+      high570: "High 570",
+    },
+    contributions: {
+      single: "Own contributions",
+      household: "Own contributions incl. spouse",
+    },
+    markers: {
+      retirement: "Retirement",
+      spouseRetirement: "Spouse retirement",
+    },
+    compactUnits: {
+      million: "M",
+      thousand: "k",
+      range: "k EUR",
+      rangeSeparator: "-",
+      rangeBandSeparator: "to",
+    },
   },
 };
 
 const CONTRIBUTION_PRESETS = [
   {
-    label: "Min 10",
     value: 10,
+    labelKey: "min10",
     tooltipKey: "min10",
   },
   {
-    label: "Förderstufe 100",
     value: 100,
+    labelKey: "level100",
     tooltipKey: "level100",
   },
   {
-    label: "Max Förderung 150",
     value: 150,
+    labelKey: "max150",
     tooltipKey: "max150",
   },
   {
-    label: "Hoch 570",
     value: 570,
+    labelKey: "high570",
     tooltipKey: "high570",
   },
 ];
@@ -99,6 +386,8 @@ const hasDom = typeof document !== "undefined";
 const elements = hasDom
   ? {
       themeToggle: document.querySelector("#theme-toggle"),
+      languageSwitcher: document.querySelector(".language-switcher"),
+      languageButtons: document.querySelectorAll("[data-language]"),
       ciToggle: document.querySelector("#ci-toggle"),
       inflationToggle: document.querySelector("#inflation-toggle"),
       toggleSpouseButton: document.querySelector("#toggle-spouse"),
@@ -151,7 +440,126 @@ const uiState = {
   adjustInflation: true,
   showConfidenceBand: true,
   hasSpouse: false,
+  language: DEFAULT_LANGUAGE,
 };
+
+function activeLanguage() {
+  return TRANSLATIONS[uiState.language] ? uiState.language : DEFAULT_LANGUAGE;
+}
+
+function activeMessages() {
+  return TRANSLATIONS[activeLanguage()];
+}
+
+function lookupTranslation(key) {
+  return key.split(".").reduce((value, segment) => value?.[segment], activeMessages());
+}
+
+function t(key, params = {}) {
+  const value = lookupTranslation(key);
+  if (typeof value === "function") {
+    return value(params);
+  }
+  return value ?? key;
+}
+
+function numberFormat(options = {}) {
+  return new Intl.NumberFormat(activeMessages().locale, options);
+}
+
+function formatCurrency(value) {
+  return numberFormat({
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatNumber(value, options = {}) {
+  return numberFormat({ maximumFractionDigits: 1, ...options }).format(value);
+}
+
+function applyTranslations(root = document) {
+  if (!hasDom) {
+    return;
+  }
+
+  document.documentElement.lang = activeMessages().htmlLang;
+  document.title = t("meta.title");
+  const description = document.querySelector("#page-description");
+  if (description) {
+    description.setAttribute("content", t("meta.description"));
+  }
+
+  for (const element of root.querySelectorAll?.("[data-i18n]") ?? []) {
+    element.textContent = t(element.dataset.i18n);
+  }
+
+  for (const element of root.querySelectorAll?.("[data-i18n-html]") ?? []) {
+    element.innerHTML = t(element.dataset.i18nHtml);
+  }
+
+  for (const element of root.querySelectorAll?.("[data-i18n-title]") ?? []) {
+    element.setAttribute("title", t(element.dataset.i18nTitle));
+  }
+
+  for (const element of root.querySelectorAll?.("[data-i18n-aria-label]") ?? []) {
+    element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+  }
+
+  elements.languageSwitcher?.setAttribute("aria-label", t("aria.languageSwitcher"));
+  syncLanguageButtons();
+}
+
+function syncLanguageButtons() {
+  for (const button of elements.languageButtons ?? []) {
+    const isActive = button.dataset.language === activeLanguage();
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  }
+}
+
+function setLanguage(language) {
+  uiState.language = TRANSLATIONS[language] ? language : DEFAULT_LANGUAGE;
+}
+
+function localizeChildRow(row) {
+  if (!row) {
+    return;
+  }
+
+  row.querySelector(".remove-child")?.setAttribute("aria-label", t("aria.removeChild"));
+  row.querySelector(".remove-child").textContent = t("controls.removeChild");
+  row.querySelector(".child-birth-year-label").textContent = t("controls.birthYear");
+  row.querySelector(".child-birth-year")?.setAttribute("aria-label", t("aria.childBirthYear"));
+}
+
+function refreshLocalizedUi() {
+  applyTranslations(document);
+  populateInfoTooltips();
+  rebuildIncomeButtons();
+  buildContributionPresets();
+  for (const row of elements.childrenList?.querySelectorAll(".child-row") ?? []) {
+    localizeChildRow(row);
+  }
+  syncChildLabels();
+  syncChartToggleButtons();
+  syncSpouseSection();
+  setDataStatus();
+  if (latestChartState) {
+    renderSummary(latestChartState, uiState.adjustInflation);
+    renderChart(latestChartState);
+  }
+}
+
+function rebuildIncomeButtons() {
+  const applicantRateId = elements.applicantIncome?.dataset.selectedRateId || "medium";
+  const spouseRateId = elements.spouseIncome?.dataset.selectedRateId || "medium";
+  buildIncomeButtons(elements.applicantIncome);
+  buildIncomeButtons(elements.spouseIncome);
+  setIncomeSelection(elements.applicantIncome, applicantRateId);
+  setIncomeSelection(elements.spouseIncome, spouseRateId);
+}
 
 if (hasDom) {
   initialize();
@@ -159,16 +567,16 @@ if (hasDom) {
 
 async function initialize() {
   const savedSession = loadSession();
+  setLanguage(savedSession?.language || DEFAULT_LANGUAGE);
   applyTheme(savedSession?.theme || localStorage.getItem(LEGACY_THEME_STORAGE_KEY) || preferredTheme());
+  seedDefaults();
+  applyTranslations(document);
   populateInfoTooltips();
   buildIncomeButtons(elements.applicantIncome);
   buildIncomeButtons(elements.spouseIncome);
-  seedDefaults();
   restoreSession(savedSession);
-  buildContributionPresets();
+  refreshLocalizedUi();
   wireEvents();
-  syncChartToggleButtons();
-  syncSpouseSection();
   syncAddChildButton();
   saveSession();
 
@@ -186,7 +594,7 @@ async function initialize() {
     runCalculation();
   } catch (error) {
     showError(error.message);
-    elements.dataStatus.textContent = "Lokale Daten konnten nicht geladen werden.";
+    elements.dataStatus.textContent = t("status.loadError");
   }
 }
 
@@ -218,7 +626,7 @@ function teardownSimulationWorker() {
 }
 
 function createCancelledSimulationError() {
-  const error = new Error("Berechnung abgebrochen.");
+  const error = new Error(t("errors.cancelledSimulation"));
   error.name = "CancelledSimulationError";
   return error;
 }
@@ -323,6 +731,7 @@ function seedDefaults() {
   uiState.adjustInflation = true;
   uiState.showConfidenceBand = true;
   uiState.hasSpouse = false;
+  uiState.language = activeLanguage();
   elements.applicantBirthYear.value = "1990";
   elements.applicantContribution.value = "150";
   elements.existingContract.value = "0";
@@ -346,7 +755,7 @@ function buildIncomeButtons(container) {
     button.dataset.rateValue = String(bracket.rate);
     button.setAttribute("role", "radio");
     button.setAttribute("aria-checked", "false");
-    button.textContent = bracket.label;
+    button.textContent = `${Math.round(bracket.rate * 100)} %`;
     button.addEventListener("click", () => {
       setIncomeSelection(container, bracket.id);
       saveSession();
@@ -371,13 +780,14 @@ function buildContributionPresets() {
     row.innerHTML = "";
     const target = document.querySelector(`#${row.dataset.target}`);
     for (const preset of CONTRIBUTION_PRESETS) {
-      const tooltip = TOOLTIPS.presets[preset.tooltipKey];
+      const tooltip = t(`tooltips.presets.${preset.tooltipKey}`);
+      const label = t(`presets.${preset.labelKey}`);
       const button = document.createElement("button");
       button.type = "button";
       button.className = "preset-button";
-      button.textContent = preset.label;
+      button.textContent = label;
       button.title = tooltip;
-      button.setAttribute("aria-label", `${preset.label}: ${tooltip}`);
+      button.setAttribute("aria-label", `${label}: ${tooltip}`);
       button.addEventListener("click", () => {
         target.value = preset.value;
         saveSession();
@@ -390,7 +800,7 @@ function buildContributionPresets() {
 
 function populateInfoTooltips() {
   for (const wrap of document.querySelectorAll(".info-wrap[data-tooltip-key]")) {
-    const tooltipText = TOOLTIPS.info[wrap.dataset.tooltipKey];
+    const tooltipText = t(`tooltips.info.${wrap.dataset.tooltipKey}`);
     const tooltipElement = wrap.querySelector(".info-tooltip");
     if (!tooltipText || !tooltipElement) {
       continue;
@@ -409,6 +819,14 @@ function wireEvents() {
       renderChart(latestChartState);
     }
   });
+
+  for (const button of elements.languageButtons ?? []) {
+    button.addEventListener("click", () => {
+      setLanguage(button.dataset.language);
+      refreshLocalizedUi();
+      saveSession();
+    });
+  }
 
   elements.inflationToggle.addEventListener("click", () => {
     uiState.adjustInflation = !uiState.adjustInflation;
@@ -463,6 +881,7 @@ function addChildRow(initialValue = "") {
   const fragment = elements.childTemplate.content.cloneNode(true);
   const row = fragment.querySelector(".child-row");
   const yearInput = fragment.querySelector(".child-birth-year");
+  localizeChildRow(row);
   row.dataset.hasInteracted = initialValue?.year ? "true" : "false";
   if (initialValue?.year) {
     yearInput.value = String(initialValue.year);
@@ -511,7 +930,9 @@ function syncChildLabels() {
     if (!label) {
       return;
     }
-    label.textContent = index === 0 ? "Kind" : `Kind ${toRoman(index + 1)}`;
+    const childLabel = t("controls.child");
+    label.textContent = index === 0 ? childLabel : `${childLabel} ${toRoman(index + 1)}`;
+    localizeChildRow(row);
   });
 }
 
@@ -555,7 +976,7 @@ function loadSession() {
       return null;
     }
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || parsed.version !== 1) {
+    if (!parsed || typeof parsed !== "object" || ![1, 2].includes(parsed.version)) {
       localStorage.removeItem(SESSION_STORAGE_KEY);
       return null;
     }
@@ -569,6 +990,10 @@ function loadSession() {
 function restoreSession(session) {
   if (!session) {
     return;
+  }
+
+  if (session.language) {
+    setLanguage(session.language);
   }
 
   if (session.theme === "dark" || session.theme === "light") {
@@ -635,7 +1060,8 @@ function setStoredIncomeSelection(container, rateId) {
 
 function snapshotSession() {
   return {
-    version: 1,
+    version: SESSION_VERSION,
+    language: activeLanguage(),
     theme: document.documentElement.dataset.theme || DEFAULT_THEME,
     applicant: {
       birthdate: snapshotMonthYear(elements.applicantBirthMonth?.value, elements.applicantBirthYear.value),
@@ -683,7 +1109,9 @@ function resetSession() {
   localStorage.removeItem(SESSION_STORAGE_KEY);
   localStorage.removeItem(LEGACY_THEME_STORAGE_KEY);
   applyTheme(preferredTheme());
+  setLanguage(DEFAULT_LANGUAGE);
   seedDefaults();
+  refreshLocalizedUi();
   syncChartToggleButtons();
   syncSpouseSection();
   hoverState = null;
@@ -701,7 +1129,7 @@ function resetSession() {
 async function fetchText(path) {
   const response = await fetch(path, { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`${path} konnte nicht geladen werden.`);
+    throw new Error(t("errors.fetchFailed", { path }));
   }
   return response.text();
 }
@@ -719,7 +1147,7 @@ function parseMarketCsv(csvText, inflation) {
   });
 
   if (levels.length < BOOTSTRAP_BLOCK_MONTHS + 1) {
-    throw new Error("Zu wenig Historie fuer 15-Jahres-Bootstraps.");
+    throw new Error(t("errors.insufficientHistory"));
   }
 
   const returns = [];
@@ -739,7 +1167,7 @@ function parseMarketCsv(csvText, inflation) {
     }));
 
   if (bootstrapSeries.length < BOOTSTRAP_BLOCK_MONTHS + 1) {
-    throw new Error("Zu wenig ueberlappende Markt- und Inflationshistorie fuer 15-Jahres-Bootstraps.");
+    throw new Error(t("errors.insufficientOverlap"));
   }
 
   return { levels, returns, bootstrapSeries };
@@ -757,7 +1185,7 @@ function parseCpiCsv(csvText) {
   });
 
   if (entries.length === 0) {
-    throw new Error("Die CPI-Datei enthaelt keine Werte.");
+    throw new Error(t("errors.emptyCpi"));
   }
 
   const lookup = new Map(entries.map((entry) => [entry.key, entry.value]));
@@ -771,7 +1199,11 @@ function parseCpiCsv(csvText) {
 function buildLoadedMessage(data) {
   const overlapStart = parseSeriesMonthKey(data.market.bootstrapSeries[0]?.key);
   const overlapEnd = parseSeriesMonthKey(data.market.bootstrapSeries.at(-1)?.key);
-  return `${data.market.bootstrapSeries.length} Monate mit ETF- und Inflationsdaten (${formatAxisDate(overlapStart)} bis ${formatAxisDate(overlapEnd)}).`;
+  return t("status.dataLoaded", {
+    end: formatAxisDate(overlapEnd),
+    months: data.market.bootstrapSeries.length,
+    start: formatAxisDate(overlapStart),
+  });
 }
 
 function parseSeriesMonthKey(key) {
@@ -790,15 +1222,15 @@ function clearError() {
 }
 
 function valueModeLabel(adjustInflation) {
-  return adjustInflation ? "Inflationsbereinigt" : "Nominal";
+  return adjustInflation ? t("status.adjusted").replace(/\.$/, "") : t("status.nominal").replace(/\.$/, "");
 }
 
 function buildDataStatusText(data, adjustInflation, options = {}) {
   if (!data) {
-    return "Lokale Markt- und Inflationsdaten werden geladen…";
+    return t("status.loadingData");
   }
 
-  return [buildLoadedMessage(data), `${valueModeLabel(adjustInflation)}.`].join(" ");
+  return [buildLoadedMessage(data), adjustInflation ? t("status.adjusted") : t("status.nominal")].join(" ");
 }
 
 function setDataStatus(options = {}) {
@@ -844,7 +1276,8 @@ function hideChartLoadingIndicator() {
 }
 
 function childRowShortLabel(index) {
-  return index === 0 ? "Kind" : `Kind ${toRoman(index + 1)}`;
+  const childLabel = t("controls.child");
+  return index === 0 ? childLabel : `${childLabel} ${toRoman(index + 1)}`;
 }
 
 function parseChildBirthYearInput(options) {
@@ -856,17 +1289,17 @@ function parseChildBirthYearInput(options) {
     if (!options.hasInteracted && !options.hasBadInput) {
       return null;
     }
-    throw new Error(`Bitte ein gueltiges Geburtsjahr fuer ${options.rowLabel} eingeben oder die Zeile entfernen.`);
+    throw new Error(t("errors.childBirthYearInvalid", { rowLabel: options.rowLabel }));
   }
 
   const numericYear = Number(normalizedYear);
   if (!Number.isInteger(numericYear)) {
-    throw new Error(`Bitte ein gueltiges Geburtsjahr fuer ${options.rowLabel} zwischen 1900 und 2050 eingeben.`);
+    throw new Error(t("errors.childBirthYearRange", { rowLabel: options.rowLabel }));
   }
 
   const birthdate = parseMonthYearInput(undefined, String(numericYear));
   if (!birthdate) {
-    throw new Error(`Bitte ein gueltiges Geburtsjahr fuer ${options.rowLabel} zwischen 1900 und 2050 eingeben.`);
+    throw new Error(t("errors.childBirthYearRange", { rowLabel: options.rowLabel }));
   }
 
   return birthdate;
@@ -882,11 +1315,11 @@ function readHouseholdState() {
   const annualFeeRate = sanitizePercent(elements.projectedFee.value, 1.5);
 
   if (!applicantBirthdate) {
-    throw new Error("Bitte das Geburtsdatum der antragstellenden Person eingeben.");
+    throw new Error(t("errors.applicantBirthdate"));
   }
 
   if (uiState.hasSpouse && !spouseBirthdate) {
-    throw new Error("Bitte das Geburtsdatum der Partnerperson eingeben.");
+    throw new Error(t("errors.spouseBirthdate"));
   }
 
   const children = Array.from(elements.childrenList.querySelectorAll(".child-row"))
@@ -1018,7 +1451,7 @@ function simulateHousehold(household, data, options = {}) {
     options.simulationSeedOffset === undefined ? simulationSeedOffset : Number(options.simulationSeedOffset) || 0;
   const applicantAge = preciseAge(household.applicant.birthdate, now);
   if (applicantAge >= maxAge) {
-    throw new Error("Die antragstellende Person ist bereits 90 oder aelter. Damit gibt es keinen Projektionshorizont mehr.");
+    throw new Error(t("errors.applicantTooOld"));
   }
 
   const years = Math.ceil(maxAge - applicantAge);
@@ -1472,11 +1905,11 @@ function chartPositionForDate(date, chartYearStart, chartYears) {
 }
 
 function formatAxisDate(date) {
-  return date.toLocaleDateString("de-DE", { year: "numeric" });
+  return date.toLocaleDateString(activeMessages().locale, { year: "numeric" });
 }
 
 function formatTooltipDate(date) {
-  return date.toLocaleDateString("de-DE", { year: "numeric" });
+  return date.toLocaleDateString(activeMessages().locale, { year: "numeric" });
 }
 
 function formatAgeYears(age) {
@@ -1492,10 +1925,10 @@ function renderSummary(result, adjustInflation) {
   const summary = retirementSummaryValues(result, adjustInflation);
 
   const summaryEls = [elements.retirementValue, elements.withdrawalIncome, elements.finalRange, elements.averageSupport];
-  elements.retirementValue.textContent = CURRENCY.format(summary.retirementValue);
-  elements.withdrawalIncome.textContent = CURRENCY.format(summary.withdrawalIncome);
+  elements.retirementValue.textContent = formatCurrency(summary.retirementValue);
+  elements.withdrawalIncome.textContent = formatCurrency(summary.withdrawalIncome);
   elements.finalRange.textContent = formatCompactRangeEuro(summary.finalRangeMin, summary.finalRangeMax);
-  elements.averageSupport.textContent = CURRENCY.format(summary.averageSupport);
+  elements.averageSupport.textContent = formatCurrency(summary.averageSupport);
   for (const el of summaryEls) {
     el.classList.remove("value-updated");
     void el.offsetWidth;
@@ -1602,11 +2035,11 @@ function renderChart(result) {
     margin,
     plotHeight,
     colors.markerApplicant,
-    "Rentenbeginn",
+    t("markers.retirement"),
   );
   const spouseMarker =
     result.hasSpouse && result.spouseRetirementChartPosition !== null
-      ? markerLine(result.spouseRetirementChartPosition, xScale, margin, plotHeight, colors.markerSpouse, "Rente Partner", 34)
+      ? markerLine(result.spouseRetirementChartPosition, xScale, margin, plotHeight, colors.markerSpouse, t("markers.spouseRetirement"), 34)
       : "";
 
   svg.innerHTML = `
@@ -1705,17 +2138,17 @@ function updateTooltip(result, yearIndex, pointerX = 20, pointerY = 20) {
   const contributionsLabel = contributionsLabelForResult(result);
   const lines = [
     `<strong>${formatTooltipDate(point.pointDate)}</strong>`,
-    `<span>${TOOLTIPS.chart.ageLabel}: ${formatAgeYears(point.applicantAge)}</span>`,
+    `<span>${t("chart.ageLabel")}: ${formatAgeYears(point.applicantAge)}</span>`,
   ];
 
   if (point.spouseAge !== null) {
-    lines.push(`<span>${TOOLTIPS.chart.spouseAgeLabel}: ${formatAgeYears(point.spouseAge)}</span>`);
+    lines.push(`<span>${t("chart.spouseAgeLabel")}: ${formatAgeYears(point.spouseAge)}</span>`);
   }
 
-  lines.push(`<span>${TOOLTIPS.chart.medianLabel}: ${CURRENCY.format(point[type].household.median)}</span>`);
-  lines.push(`<span>${contributionsLabel}: ${CURRENCY.format(point[type].contributions.median)}</span>`);
+  lines.push(`<span>${t("chart.medianLabel")}: ${formatCurrency(point[type].household.median)}</span>`);
+  lines.push(`<span>${contributionsLabel}: ${formatCurrency(point[type].contributions.median)}</span>`);
   lines.push(
-    `<span>${TOOLTIPS.chart.bandLabel}: ${CURRENCY.format(point[type].household.p2_5)} bis ${CURRENCY.format(point[type].household.p97_5)}</span>`,
+    `<span>${t("chart.bandLabel")}: ${formatCurrency(point[type].household.p2_5)} ${t("compactUnits.rangeBandSeparator")} ${formatCurrency(point[type].household.p97_5)}</span>`,
   );
   tooltip.innerHTML = lines.join("");
   tooltip.classList.remove("hidden");
@@ -1733,17 +2166,17 @@ function updateTooltip(result, yearIndex, pointerX = 20, pointerY = 20) {
 function renderLegend(result) {
   const contributionsLabel = contributionsLabelForResult(result);
   const items = [
-    { label: "Depotwert", color: "var(--accent)" },
+    { label: t("chart.legendValue"), color: "var(--accent)" },
     { label: contributionsLabel, color: colors.contributions },
-    { label: "Rentenbeginn", color: colors.markerApplicant },
+    { label: t("chart.legendRetirement"), color: colors.markerApplicant },
   ];
 
   if (uiState.showConfidenceBand) {
-    items.splice(1, 0, { label: "95%-Band", color: "rgba(72, 151, 123, 0.45)" });
+    items.splice(1, 0, { label: t("chart.legendBand"), color: "rgba(72, 151, 123, 0.45)" });
   }
 
   if (result.hasSpouse) {
-    items.push({ label: "Rentenbeginn Partner", color: colors.markerSpouse });
+    items.push({ label: t("chart.legendSpouseRetirement"), color: colors.markerSpouse });
   }
 
   elements.chartLegend.innerHTML = items
@@ -1755,7 +2188,7 @@ function renderLegend(result) {
 }
 
 function contributionsLabelForResult(result) {
-  return result.hasSpouse ? "Eigene Einzahlungen inkl. Partner" : "Eigene Einzahlungen";
+  return result.hasSpouse ? t("contributions.household") : t("contributions.single");
 }
 
 function buildBandPath(points, xScale, yScale, type) {
@@ -1848,20 +2281,20 @@ function markerLine(yearIndex, xScale, margin, plotHeight, color, label, labelYO
 
 function compactCurrency(value) {
   if (value >= 1_000_000) {
-    return `${NUMBER.format(value / 1_000_000)} Mio`;
+    return `${formatNumber(value / 1_000_000)} ${t("compactUnits.million")}`;
   }
   if (value >= 1_000) {
-    return `${NUMBER.format(value / 1_000)} Tsd`;
+    return `${formatNumber(value / 1_000)} ${t("compactUnits.thousand")}`;
   }
-  return NUMBER.format(value);
+  return formatNumber(value);
 }
 
 function formatCompactRangeEuro(minValue, maxValue) {
-  return `${formatRangeThousandsValue(minValue)}-${formatRangeThousandsValue(maxValue)} Tsd. €`;
+  return `${formatRangeThousandsValue(minValue)}${t("compactUnits.rangeSeparator")}${formatRangeThousandsValue(maxValue)} ${t("compactUnits.range")}`;
 }
 
 function formatRangeThousandsValue(value) {
-  return new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 }).format(Math.round(value / 1000));
+  return numberFormat({ maximumFractionDigits: 0 }).format(Math.round(value / 1000));
 }
 
 function clamp(value, min, max) {
@@ -1869,14 +2302,14 @@ function clamp(value, min, max) {
 }
 
 function syncChartToggleButtons() {
-  setToggleState(elements.inflationToggle, uiState.adjustInflation, "Inflationsbereinigung");
-  setToggleState(elements.ciToggle, uiState.showConfidenceBand, "95%-Band");
+  setToggleState(elements.inflationToggle, uiState.adjustInflation, t("chart.inflationOff"), t("chart.inflationOn"));
+  setToggleState(elements.ciToggle, uiState.showConfidenceBand, t("chart.confidenceBandOff"), t("chart.confidenceBandOn"));
 }
 
-function setToggleState(button, isActive, label) {
+function setToggleState(button, isActive, inactiveLabel, activeLabel) {
   button.classList.toggle("active", isActive);
   button.setAttribute("aria-pressed", String(isActive));
-  button.textContent = isActive ? `${label} an` : `${label} aus`;
+  button.textContent = isActive ? activeLabel : inactiveLabel;
 }
 
 function rerenderOutputs() {
@@ -1890,7 +2323,7 @@ function rerenderOutputs() {
 
 function syncSpouseSection() {
   elements.spouseFields.classList.toggle("hidden", !uiState.hasSpouse);
-  elements.toggleSpouseButton.textContent = uiState.hasSpouse ? "Partner entfernen" : "Partner hinzufügen";
+  elements.toggleSpouseButton.textContent = uiState.hasSpouse ? t("controls.removeSpouse") : t("controls.addSpouse");
 }
 
 export {
@@ -1903,5 +2336,6 @@ export {
   preciseAge,
   projectPath,
   retirementSummaryValues,
+  setLanguage,
   simulateHousehold,
 };

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildDataStatusText, parseChildBirthYearInput, simulateHousehold } from "./app.js";
+import { buildDataStatusText, chartLoadingPatternText, parseChildBirthYearInput, setLanguage, simulateHousehold } from "./app.js";
 import { computeSimulationResult } from "./simulation-worker.js";
 
 function buildStatusDataset() {
@@ -89,11 +89,11 @@ test("parseChildBirthYearInput rejects invalid years", () => {
   );
 });
 
-test("buildDataStatusText keeps the selected mode and loading state", () => {
+test("buildDataStatusText keeps the selected mode on loading", () => {
   const status = buildDataStatusText(buildStatusDataset(), true, { isLoading: true });
 
   assert.match(status, /Inflationsbereinigt\./);
-  assert.match(status, /Berechnung laeuft…/);
+  assert.doesNotMatch(status, /Berechnung laeuft/);
 });
 
 test("buildDataStatusText renders nominal mode", () => {
@@ -101,6 +101,40 @@ test("buildDataStatusText renders nominal mode", () => {
 
   assert.match(status, /Nominal\./);
   assert.doesNotMatch(status, /Berechnung laeuft/);
+});
+
+test("buildDataStatusText renders English copy after locale switch", () => {
+  setLanguage("en");
+  const status = buildDataStatusText(buildStatusDataset(), true);
+
+  assert.match(status, /months of ETF and inflation data/);
+  assert.match(status, /Inflation-adjusted\./);
+
+  setLanguage("de");
+});
+
+test("parseChildBirthYearInput uses localized English validation messages", () => {
+  setLanguage("en");
+
+  assert.throws(
+    () =>
+      parseChildBirthYearInput({
+        hasBadInput: false,
+        hasInteracted: true,
+        rowLabel: "Child II",
+        yearValue: "",
+      }),
+    /Child II/,
+  );
+
+  setLanguage("de");
+});
+
+test("chartLoadingPatternText cycles through the expected dot pattern", () => {
+  assert.equal(chartLoadingPatternText(0), ".");
+  assert.equal(chartLoadingPatternText(1), "..");
+  assert.equal(chartLoadingPatternText(2), "...");
+  assert.equal(chartLoadingPatternText(3), ".");
 });
 
 test("worker computation matches direct simulation for a fixed request", () => {
