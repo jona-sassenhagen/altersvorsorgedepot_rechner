@@ -46,7 +46,7 @@ Die App projiziert nur die Ansparphase. Auszahlungsprodukte, Entnahmestrategien,
 - Historische Datenquelle: die lokal im Repository gespeicherte Curvo-CSV.
 - Renditefrequenz: monatlich.
 - Bootstrap-Methode: sequentieller 15-Jahres-Block-Bootstrap auf Monatsrenditen.
-- Anzahl Simulationen: 2.500.
+- Anzahl Simulationen: 1.000.
 - Projektionshorizont: ab heute bis zum 90. Lebensjahr der antragstellenden Person.
 - Beiträge enden mit dem Renteneintrittsalter.
 - Standard-Renteneintrittsalter: 67.
@@ -119,7 +119,7 @@ Diese Klassen sind Modellannahmen, keine gesetzlichen Tarifzonen:
 
 ## Inflationsbehandlung
 
-- Die App verwendet eine lokale monatliche deutsche CPI-Zeitreihe aus `inflation.csv`.
+- Die App verwendet eine lokale monatliche deutsche CPI-Zeitreihe aus `germany_monthly_cpi_1978_2025.csv`.
 - Wenn die Inflationsoption aktiviert ist, werden Ergebnisse in Preisen des letzten verfügbaren CPI-Monats ausgewiesen.
 - Da die CPI-Reihe derzeit bis Dezember 2025 reicht, wird für spätere Projektionsmonate in v1 die letzte verfügbare Inflationsrate fortgeschrieben.
 - Historische Kapitalmarktdaten und CPI-Daten werden monatlich zusammengeführt, damit nominale und reale Ergebnisse aus demselben Simulationspfad entstehen.

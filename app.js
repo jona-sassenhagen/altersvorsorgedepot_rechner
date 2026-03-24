@@ -138,9 +138,9 @@ const TRANSLATIONS = {
         min10:
           "10 Euro pro Monat sind der gesetzliche Mindestbeitrag für ein Altersvorsorgedepot im vorgeschlagenen Reformmodell.",
         level100:
-          "100 Euro pro Monat sind 1.200 Euro pro Jahr. Damit wird im Entwurf die volle erste Förderstufe ausgeschöpft: 30 Prozent Grundförderung auf die ersten 1.200 Euro Eigenbeitrag.",
+          "30 Euro pro Monat sind 360 Euro pro Jahr. Damit wird die erste Förderstufe ausgeschöpft: 50 Prozent Grundförderung auf die ersten 360 Euro Eigenbeitrag.",
         max150:
-          "150 Euro pro Monat sind 1.800 Euro pro Jahr. Damit wird im Entwurf der maximal geförderte Jahresbeitrag erreicht: 1.200 Euro mit 30 Prozent plus weitere 600 Euro mit 20 Prozent.",
+          "150 Euro pro Monat sind 1.800 Euro pro Jahr. Damit wird der maximal geförderte Jahresbeitrag erreicht: 360 Euro mit 50 Prozent plus weitere 1.440 Euro mit 25 Prozent.",
         high570:
           "570 Euro pro Monat sind 6.840 Euro pro Jahr. Im BMF-Entwurf ist das die genannte Obergrenze, bis zu der Beiträge in der Ansparphase steuerfrei bleiben; zusätzliche proportionale Förderung gibt es aber nur bis 1.800 Euro pro Jahr.",
       },
@@ -167,7 +167,7 @@ const TRANSLATIONS = {
     },
     presets: {
       min10: "Min 10",
-      level100: "Förderstufe 100",
+      level100: "Stufe 30",
       max150: "Max Förderung 150",
       high570: "Hoch 570",
     },
@@ -303,9 +303,9 @@ const TRANSLATIONS = {
         min10:
           "10 euros per month is the statutory minimum contribution for a retirement savings portfolio in the proposed reform model.",
         level100:
-          "100 euros per month equals 1,200 euros per year. In the draft, that fully uses the first subsidy tier: a 30 percent base subsidy on the first 1,200 euros of own contributions.",
+          "30 euros per month equal 360 euros per year. That fully uses the first subsidy tier: a 50 percent base subsidy on the first 360 euros of own contributions.",
         max150:
-          "150 euros per month equals 1,800 euros per year. In the draft, that reaches the maximum subsidized annual contribution: 1,200 euros at 30 percent plus another 600 euros at 20 percent.",
+          "150 euros per month equal 1,800 euros per year. That reaches the maximum subsidized annual contribution: 360 euros at 50 percent plus another 1,440 euros at 25 percent.",
         high570:
           "570 euros per month equals 6,840 euros per year. In the Finance Ministry draft, that is the stated cap up to which contributions remain tax-free during accumulation, but proportional subsidies only apply up to 1,800 euros per year.",
       },
@@ -331,7 +331,7 @@ const TRANSLATIONS = {
     },
     presets: {
       min10: "Min 10",
-      level100: "Tier 100",
+      level100: "Tier 30",
       max150: "Max subsidy 150",
       high570: "High 570",
     },
@@ -360,7 +360,7 @@ const CONTRIBUTION_PRESETS = [
     tooltipKey: "min10",
   },
   {
-    value: 100,
+    value: 30,
     labelKey: "level100",
     tooltipKey: "level100",
   },
@@ -1792,10 +1792,12 @@ function annualSupportForYear(household, context) {
   // Child support is shared in proportion to each adult's eligible contribution base so the
   // household-level child subsidy can still be attributed back to applicant and spouse balances.
   const eligibleChildren = household.children.filter((birthdate) => preciseAge(birthdate, context.yearEndDate) < 18).length;
-  const applicantEligibleChildBase = Math.min(context.applicantAnnualContribution, 1200);
-  const spouseEligibleChildBase = Math.min(context.spouseAnnualContribution, 1200);
-  const householdEligibleChildBase = Math.min(applicantEligibleChildBase + spouseEligibleChildBase, 1200);
-  const childSubsidyTotal = eligibleChildren * 0.25 * householdEligibleChildBase;
+  // This app continues to model child support proportionally, but now reaches the full
+  // EUR 300 allowance once household contributions hit EUR 300/year (EUR 25/month).
+  const applicantEligibleChildBase = Math.min(context.applicantAnnualContribution, 300);
+  const spouseEligibleChildBase = Math.min(context.spouseAnnualContribution, 300);
+  const householdEligibleChildBase = Math.min(applicantEligibleChildBase + spouseEligibleChildBase, 300);
+  const childSubsidyTotal = eligibleChildren * householdEligibleChildBase;
   const contributionWeightTotal = applicantEligibleChildBase + spouseEligibleChildBase;
 
   const applicantChildSubsidy =
@@ -1819,8 +1821,8 @@ function annualSupportForYear(household, context) {
 }
 
 function baseSubsidy(annualContribution) {
-  const firstTier = Math.min(annualContribution, 1200) * 0.3;
-  const secondTier = Math.min(Math.max(annualContribution - 1200, 0), 600) * 0.2;
+  const firstTier = Math.min(annualContribution, 360) * 0.5;
+  const secondTier = Math.min(Math.max(annualContribution - 360, 0), 1440) * 0.25;
   return firstTier + secondTier;
 }
 

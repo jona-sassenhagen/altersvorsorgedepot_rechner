@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildDataStatusText, chartLoadingPatternText, parseChildBirthYearInput, setLanguage, simulateHousehold } from "./app.js";
+import {
+  annualSupportForYear,
+  baseSubsidy,
+  buildDataStatusText,
+  chartLoadingPatternText,
+  parseChildBirthYearInput,
+  setLanguage,
+  simulateHousehold,
+} from "./app.js";
 import { computeSimulationResult } from "./simulation-worker.js";
 
 function buildStatusDataset() {
@@ -135,6 +143,41 @@ test("chartLoadingPatternText cycles through the expected dot pattern", () => {
   assert.equal(chartLoadingPatternText(1), "..");
   assert.equal(chartLoadingPatternText(2), "...");
   assert.equal(chartLoadingPatternText(3), ".");
+});
+
+test("baseSubsidy uses the new 50-cent and 25-cent tiers", () => {
+  assert.equal(baseSubsidy(0), 0);
+  assert.equal(baseSubsidy(360), 180);
+  assert.equal(baseSubsidy(1_800), 540);
+  assert.equal(baseSubsidy(2_400), 540);
+});
+
+test("annualSupportForYear grants the full child allowance from 25 euros per month", () => {
+  const household = {
+    applicant: {
+      birthdate: new Date(1990, 0, 1),
+      incomeRate: 0,
+    },
+    spouse: null,
+    children: [new Date(2020, 0, 1)],
+  };
+
+  const belowThreshold = annualSupportForYear(household, {
+    applicantAnnualContribution: 240,
+    spouseAnnualContribution: 0,
+    yearEndDate: new Date(2026, 11, 31),
+    yearIndex: 1,
+  });
+
+  const atThreshold = annualSupportForYear(household, {
+    applicantAnnualContribution: 300,
+    spouseAnnualContribution: 0,
+    yearEndDate: new Date(2026, 11, 31),
+    yearIndex: 1,
+  });
+
+  assert.equal(belowThreshold.applicant, 360);
+  assert.equal(atThreshold.applicant, 450);
 });
 
 test("worker computation matches direct simulation for a fixed request", () => {
