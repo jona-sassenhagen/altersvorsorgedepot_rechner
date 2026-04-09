@@ -1022,6 +1022,10 @@ button:focus-visible {
   min-width: 200px;
 }
 
+#inflows-inflation-toggle {
+  min-width: 240px;
+}
+
 #ci-toggle {
   min-width: 110px;
 }

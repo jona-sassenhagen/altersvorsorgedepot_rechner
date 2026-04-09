@@ -99,25 +99,35 @@ test("parseChildBirthYearInput rejects invalid years", () => {
 });
 
 test("buildDataStatusText keeps the selected mode on loading", () => {
-  const status = buildDataStatusText(buildStatusDataset(), true, { isLoading: true });
+  const status = buildDataStatusText(buildStatusDataset(), true, false, { isLoading: true });
 
-  assert.match(status, /Inflationsbereinigt\./);
+  assert.match(status, /Inflationsbereinigt(\.|\b)/);
+  assert.match(status, /Zuflüsse ohne Inflationsfortschreibung(\.|\b)/);
   assert.doesNotMatch(status, /Berechnung laeuft/);
 });
 
 test("buildDataStatusText renders nominal mode", () => {
-  const status = buildDataStatusText(buildStatusDataset(), false);
+  const status = buildDataStatusText(buildStatusDataset(), false, false);
 
-  assert.match(status, /Nominal\./);
+  assert.match(status, /Nominal(\.|\b)/);
+  assert.match(status, /Zuflüsse ohne Inflationsfortschreibung(\.|\b)/);
   assert.doesNotMatch(status, /Berechnung laeuft/);
+});
+
+test("buildDataStatusText renders inflow-adjusted mode", () => {
+  const status = buildDataStatusText(buildStatusDataset(), true, true);
+
+  assert.match(status, /Inflationsbereinigt(\.|\b)/);
+  assert.match(status, /Zuflüsse mit Inflation fortgeschrieben(\.|\b)/);
 });
 
 test("buildDataStatusText renders English copy after locale switch", () => {
   setLanguage("en");
-  const status = buildDataStatusText(buildStatusDataset(), true);
+  const status = buildDataStatusText(buildStatusDataset(), true, true);
 
   assert.match(status, /months of ETF and inflation data/);
-  assert.match(status, /Inflation-adjusted\./);
+  assert.match(status, /Inflation-adjusted(\.|\b)/);
+  assert.match(status, /Inflows indexed with inflation(\.|\b)/);
 
   setLanguage("de");
 });
@@ -228,6 +238,88 @@ test("withdrawal summary does not select a pre-applicant-retirement spouse-only 
 
   assert.equal(singleResult.preRetirementYear, spouseResult.preRetirementYear);
   assert.ok(spouseWithdrawal >= singleWithdrawal);
+});
+
+test("simulateHousehold includes subsidy in inflows and supports real inflow series", () => {
+  const bootstrapSeries = Array.from({ length: 181 }, (_, index) => ({
+    inflationRatio: 1.002,
+    key: `fix-${index}`,
+    marketReturn: 0,
+  }));
+  const household = {
+    annualFeeRate: 0,
+    applicant: {
+      birthdate: new Date(1990, 0, 1),
+      incomeRate: 0,
+      initialBalance: 0,
+      monthlyContribution: 150,
+      retirementAge: 67,
+    },
+    children: [],
+    spouse: null,
+  };
+
+  const result = simulateHousehold(household, bootstrapSeries, {
+    adjustInflowsForInflation: false,
+    maxAge: 40,
+    now: new Date(2025, 0, 1),
+    simulationCount: 1,
+    simulationSeedOffset: 0,
+  });
+
+  const yearOneNominal = result.yearlyStats[1].nominal;
+  const yearOneReal = result.yearlyStats[1].real;
+
+  assert.equal(yearOneNominal.contributions.median, 1_800);
+  assert.equal(yearOneNominal.inflows.median, 2_340);
+  assert.ok(yearOneReal.inflows.median < yearOneNominal.inflows.median);
+});
+
+test("simulateHousehold indexes contributions and subsidies when inflow indexing is enabled", () => {
+  const bootstrapSeries = Array.from({ length: 241 }, (_, index) => ({
+    inflationRatio: 1.004,
+    key: `idx-${index}`,
+    marketReturn: 0,
+  }));
+  const household = {
+    annualFeeRate: 0,
+    applicant: {
+      birthdate: new Date(1990, 0, 1),
+      incomeRate: 0,
+      initialBalance: 0,
+      monthlyContribution: 100,
+      retirementAge: 67,
+    },
+    children: [],
+    spouse: null,
+  };
+
+  const sharedOptions = {
+    maxAge: 45,
+    now: new Date(2025, 0, 1),
+    simulationCount: 1,
+    simulationSeedOffset: 0,
+  };
+
+  const withoutIndexing = simulateHousehold(household, bootstrapSeries, {
+    ...sharedOptions,
+    adjustInflowsForInflation: false,
+  });
+  const withIndexing = simulateHousehold(household, bootstrapSeries, {
+    ...sharedOptions,
+    adjustInflowsForInflation: true,
+  });
+
+  const yearOneWithout = withoutIndexing.yearlyStats[1].nominal;
+  const yearOneWith = withIndexing.yearlyStats[1].nominal;
+  const lastYearIndex = withIndexing.yearlyStats.length - 1;
+  const lastYearWithout = withoutIndexing.yearlyStats[lastYearIndex].nominal;
+  const lastYearWith = withIndexing.yearlyStats[lastYearIndex].nominal;
+
+  assert.equal(yearOneWithout.contributions.median, 1_200);
+  assert.ok(yearOneWith.contributions.median > yearOneWithout.contributions.median * 1.02);
+  assert.ok(yearOneWith.inflows.median > yearOneWithout.inflows.median * 1.02);
+  assert.ok(lastYearWith.household.median > lastYearWithout.household.median * 1.3);
 });
 
 test("worker computation matches direct simulation for a fixed request", () => {

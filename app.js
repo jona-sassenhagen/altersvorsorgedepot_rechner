@@ -64,7 +64,7 @@ const TRANSLATIONS = {
     chart: {
       title: "Wertentwicklung des Depots",
       subtitle:
-        "Depotwert und eigene Einzahlungen im Zeitverlauf. Nach dem Renteneintritt wird eine Entnahme nach der 4%-Regel angenommen.",
+        "Depotwert und Zuflüsse (Einzahlungen + Förderung) im Zeitverlauf. Nach dem Renteneintritt wird eine Entnahme nach der 4%-Regel angenommen.",
       svgTitle: "Projektion des Depotvermögens",
       svgDesc:
         "Zeitreihe mit Depotwert, eigenen Einzahlungen, 95-Prozent-Band, Markierungen zum Renteneintritt und Entnahmen nach der 4%-Regel.",
@@ -73,6 +73,8 @@ const TRANSLATIONS = {
       inflationOff: "Inflationsbereinigung aus",
       confidenceBandOn: "95%-Band an",
       confidenceBandOff: "95%-Band aus",
+      inflowsAdjustedOn: "Zuflüsse mit Inflation fortschreiben an",
+      inflowsAdjustedOff: "Zuflüsse mit Inflation fortschreiben aus",
       ageLabel: "Alter",
       spouseAgeLabel: "Alter Partner",
       medianLabel: "Depot Median",
@@ -151,6 +153,8 @@ const TRANSLATIONS = {
       dataLoaded: ({ months, start, end }) => `${months} Monate mit ETF- und Inflationsdaten (${start} bis ${end}).`,
       adjusted: "Inflationsbereinigt.",
       nominal: "Nominal.",
+      inflowsAdjusted: "Zuflüsse mit Inflation fortgeschrieben.",
+      inflowsNominal: "Zuflüsse ohne Inflationsfortschreibung.",
     },
     errors: {
       cancelledSimulation: "Berechnung abgebrochen.",
@@ -172,8 +176,10 @@ const TRANSLATIONS = {
       high570: "Hoch 570",
     },
     contributions: {
-      single: "Eigene Einzahlungen",
-      household: "Eigene Einzahlungen inkl. Partner",
+      single: "Zuflüsse",
+      household: "Zuflüsse inkl. Partner",
+      singleAdjusted: "Zuflüsse",
+      householdAdjusted: "Zuflüsse inkl. Partner",
     },
     markers: {
       retirement: "Rentenbeginn",
@@ -229,7 +235,7 @@ const TRANSLATIONS = {
     chart: {
       title: "Portfolio growth over time",
       subtitle:
-        "Portfolio value and own contributions over time. After retirement, withdrawals are modeled using the 4% rule.",
+        "Portfolio value and inflows (contributions + subsidies) over time. After retirement, withdrawals are modeled using the 4% rule.",
       svgTitle: "Projected retirement portfolio",
       svgDesc:
         "Time series showing portfolio value, own contributions, the 95 percent band, retirement markers, and 4 percent rule withdrawals.",
@@ -238,6 +244,8 @@ const TRANSLATIONS = {
       inflationOff: "Inflation adjustment off",
       confidenceBandOn: "95% band on",
       confidenceBandOff: "95% band off",
+      inflowsAdjustedOn: "Inflation-indexed inflows on",
+      inflowsAdjustedOff: "Inflation-indexed inflows off",
       ageLabel: "Age",
       spouseAgeLabel: "Spouse age",
       medianLabel: "Median portfolio",
@@ -316,6 +324,8 @@ const TRANSLATIONS = {
       dataLoaded: ({ months, start, end }) => `${months} months of ETF and inflation data (${start} to ${end}).`,
       adjusted: "Inflation-adjusted.",
       nominal: "Nominal.",
+      inflowsAdjusted: "Inflows indexed with inflation.",
+      inflowsNominal: "Inflows not indexed with inflation.",
     },
     errors: {
       cancelledSimulation: "Calculation cancelled.",
@@ -336,8 +346,10 @@ const TRANSLATIONS = {
       high570: "High 570",
     },
     contributions: {
-      single: "Own contributions",
-      household: "Own contributions incl. spouse",
+      single: "Inflows",
+      household: "Inflows incl. spouse",
+      singleAdjusted: "Inflows",
+      householdAdjusted: "Inflows incl. spouse",
     },
     markers: {
       retirement: "Retirement",
@@ -390,6 +402,7 @@ const elements = hasDom
       languageButtons: document.querySelectorAll("[data-language]"),
       ciToggle: document.querySelector("#ci-toggle"),
       inflationToggle: document.querySelector("#inflation-toggle"),
+      inflowsInflationToggle: document.querySelector("#inflows-inflation-toggle"),
       toggleSpouseButton: document.querySelector("#toggle-spouse"),
       resetSessionButton: document.querySelector("#reset-session"),
       spouseFields: document.querySelector("#spouse-fields"),
@@ -438,6 +451,7 @@ let chartLoadingStep = 0;
 let hoverState = null;
 const uiState = {
   adjustInflation: true,
+  adjustInflowsForInflation: false,
   showConfidenceBand: true,
   hasSpouse: false,
   language: DEFAULT_LANGUAGE,
@@ -472,6 +486,15 @@ function formatCurrency(value) {
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatCurrencyDetailed(value) {
+  return numberFormat({
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 
@@ -689,6 +712,7 @@ function requestSimulation(household, token) {
     now: new Date(),
     simulationCount: SIMULATION_COUNT,
     simulationSeedOffset,
+    adjustInflowsForInflation: uiState.adjustInflowsForInflation,
   };
   const worker = ensureSimulationWorker();
 
@@ -729,6 +753,7 @@ function applyTheme(theme) {
 
 function seedDefaults() {
   uiState.adjustInflation = true;
+  uiState.adjustInflowsForInflation = false;
   uiState.showConfidenceBand = true;
   uiState.hasSpouse = false;
   uiState.language = activeLanguage();
@@ -833,6 +858,13 @@ function wireEvents() {
     syncChartToggleButtons();
     saveSession();
     rerenderOutputs();
+  });
+
+  elements.inflowsInflationToggle.addEventListener("click", () => {
+    uiState.adjustInflowsForInflation = !uiState.adjustInflowsForInflation;
+    syncChartToggleButtons();
+    saveSession();
+    runCalculation();
   });
 
   elements.ciToggle.addEventListener("click", () => {
@@ -1021,6 +1053,9 @@ function restoreSession(session) {
     if (typeof session.controls.adjustInflation === "boolean") {
       uiState.adjustInflation = session.controls.adjustInflation;
     }
+    if (typeof session.controls.adjustInflowsForInflation === "boolean") {
+      uiState.adjustInflowsForInflation = session.controls.adjustInflowsForInflation;
+    }
     if (typeof session.controls.showConfidenceBand === "boolean") {
       uiState.showConfidenceBand = session.controls.showConfidenceBand;
     }
@@ -1086,6 +1121,7 @@ function snapshotSession() {
       retirementAge: elements.retirementAge.value,
       projectedFee: elements.projectedFee.value,
       adjustInflation: uiState.adjustInflation,
+      adjustInflowsForInflation: uiState.adjustInflowsForInflation,
       showConfidenceBand: uiState.showConfidenceBand,
     },
   };
@@ -1225,16 +1261,34 @@ function valueModeLabel(adjustInflation) {
   return adjustInflation ? t("status.adjusted").replace(/\.$/, "") : t("status.nominal").replace(/\.$/, "");
 }
 
-function buildDataStatusText(data, adjustInflation, options = {}) {
+function inflowModeLabel(adjustInflowsForInflation) {
+  return adjustInflowsForInflation ? t("status.inflowsAdjusted").replace(/\.$/, "") : t("status.inflowsNominal").replace(/\.$/, "");
+}
+
+function buildDataStatusText(data, adjustInflation, adjustInflowsForInflation = false) {
+  let resolvedAdjustInflowsForInflation = adjustInflowsForInflation;
+  if (typeof adjustInflowsForInflation === "object" && adjustInflowsForInflation !== null) {
+    resolvedAdjustInflowsForInflation = false;
+  }
+
   if (!data) {
     return t("status.loadingData");
   }
 
-  return [buildLoadedMessage(data), adjustInflation ? t("status.adjusted") : t("status.nominal")].join(" ");
+  return [
+    buildLoadedMessage(data),
+    valueModeLabel(adjustInflation),
+    inflowModeLabel(Boolean(resolvedAdjustInflowsForInflation)),
+  ].join(" ");
 }
 
 function setDataStatus(options = {}) {
-  elements.dataStatus.textContent = buildDataStatusText(datasets, uiState.adjustInflation, options);
+  elements.dataStatus.textContent = buildDataStatusText(
+    datasets,
+    uiState.adjustInflation,
+    uiState.adjustInflowsForInflation,
+    options,
+  );
 }
 
 function chartLoadingPatternText(step = 0) {
@@ -1449,6 +1503,7 @@ function simulateHousehold(household, data, options = {}) {
   const resolvedSimulationCount = Number.isFinite(options.simulationCount) ? options.simulationCount : SIMULATION_COUNT;
   const resolvedSeedOffset =
     options.simulationSeedOffset === undefined ? simulationSeedOffset : Number(options.simulationSeedOffset) || 0;
+  const adjustInflowsForInflation = Boolean(options.adjustInflowsForInflation);
   const applicantAge = preciseAge(household.applicant.birthdate, now);
   if (applicantAge >= maxAge) {
     throw new Error(t("errors.applicantTooOld"));
@@ -1470,6 +1525,8 @@ function simulateHousehold(household, data, options = {}) {
     spouseReal: Array.from({ length: years + 1 }, () => []),
     contributionsNominal: Array.from({ length: years + 1 }, () => []),
     contributionsReal: Array.from({ length: years + 1 }, () => []),
+    inflowsNominal: Array.from({ length: years + 1 }, () => []),
+    inflowsReal: Array.from({ length: years + 1 }, () => []),
     withdrawalsNominal: Array.from({ length: years + 1 }, () => []),
     withdrawalsReal: Array.from({ length: years + 1 }, () => []),
   };
@@ -1478,6 +1535,8 @@ function simulateHousehold(household, data, options = {}) {
     householdReal: Array.from({ length: chartYears }, () => []),
     contributionsNominal: Array.from({ length: chartYears }, () => []),
     contributionsReal: Array.from({ length: chartYears }, () => []),
+    inflowsNominal: Array.from({ length: chartYears }, () => []),
+    inflowsReal: Array.from({ length: chartYears }, () => []),
     withdrawalsNominal: Array.from({ length: chartYears }, () => []),
     withdrawalsReal: Array.from({ length: chartYears }, () => []),
   };
@@ -1489,7 +1548,7 @@ function simulateHousehold(household, data, options = {}) {
     // The bootstrap stitches together 15-year historical blocks, preserving medium-term market
     // regimes better than fully independent month-by-month sampling.
     const bootstrap = makeBootstrapPath(bootstrapSeries, totalMonths, random);
-    const path = projectPath(household, bootstrap, now, years);
+    const path = projectPath(household, bootstrap, now, years, adjustInflowsForInflation);
     aggregateSupport += path.totalSupport;
 
     for (let yearIndex = 0; yearIndex <= years; yearIndex += 1) {
@@ -1501,6 +1560,8 @@ function simulateHousehold(household, data, options = {}) {
       paths.spouseReal[yearIndex].push(path.spouseReal[yearIndex]);
       paths.contributionsNominal[yearIndex].push(path.householdContributionNominal[yearIndex]);
       paths.contributionsReal[yearIndex].push(path.householdContributionReal[yearIndex]);
+      paths.inflowsNominal[yearIndex].push(path.householdInflowNominal[yearIndex]);
+      paths.inflowsReal[yearIndex].push(path.householdInflowReal[yearIndex]);
       paths.withdrawalsNominal[yearIndex].push(path.householdWithdrawalNominal[yearIndex]);
       paths.withdrawalsReal[yearIndex].push(path.householdWithdrawalReal[yearIndex]);
     }
@@ -1510,6 +1571,8 @@ function simulateHousehold(household, data, options = {}) {
       chartPaths.householdReal[chartIndex].push(path.chartStats[chartIndex].real.household);
       chartPaths.contributionsNominal[chartIndex].push(path.chartStats[chartIndex].nominal.contributions);
       chartPaths.contributionsReal[chartIndex].push(path.chartStats[chartIndex].real.contributions);
+      chartPaths.inflowsNominal[chartIndex].push(path.chartStats[chartIndex].nominal.inflows);
+      chartPaths.inflowsReal[chartIndex].push(path.chartStats[chartIndex].real.inflows);
       chartPaths.withdrawalsNominal[chartIndex].push(path.chartStats[chartIndex].nominal.withdrawals);
       chartPaths.withdrawalsReal[chartIndex].push(path.chartStats[chartIndex].real.withdrawals);
     }
@@ -1529,6 +1592,7 @@ function simulateHousehold(household, data, options = {}) {
         applicant: summarizeSamples(paths.applicantNominal[yearIndex]),
         spouse: summarizeSamples(paths.spouseNominal[yearIndex]),
         contributions: summarizeSamples(paths.contributionsNominal[yearIndex]),
+        inflows: summarizeSamples(paths.inflowsNominal[yearIndex]),
         withdrawals: summarizeSamples(paths.withdrawalsNominal[yearIndex]),
       },
       real: {
@@ -1536,6 +1600,7 @@ function simulateHousehold(household, data, options = {}) {
         applicant: summarizeSamples(paths.applicantReal[yearIndex]),
         spouse: summarizeSamples(paths.spouseReal[yearIndex]),
         contributions: summarizeSamples(paths.contributionsReal[yearIndex]),
+        inflows: summarizeSamples(paths.inflowsReal[yearIndex]),
         withdrawals: summarizeSamples(paths.withdrawalsReal[yearIndex]),
       },
     });
@@ -1552,11 +1617,13 @@ function simulateHousehold(household, data, options = {}) {
       nominal: {
         household: summarizeSamples(chartPaths.householdNominal[chartIndex]),
         contributions: summarizeSamples(chartPaths.contributionsNominal[chartIndex]),
+        inflows: summarizeSamples(chartPaths.inflowsNominal[chartIndex]),
         withdrawals: summarizeSamples(chartPaths.withdrawalsNominal[chartIndex]),
       },
       real: {
         household: summarizeSamples(chartPaths.householdReal[chartIndex]),
         contributions: summarizeSamples(chartPaths.contributionsReal[chartIndex]),
+        inflows: summarizeSamples(chartPaths.inflowsReal[chartIndex]),
         withdrawals: summarizeSamples(chartPaths.withdrawalsReal[chartIndex]),
       },
     });
@@ -1594,12 +1661,14 @@ function simulateHousehold(household, data, options = {}) {
   };
 }
 
-function projectPath(household, bootstrap, now, years) {
+function projectPath(household, bootstrap, now, years, adjustInflowsForInflation = false) {
   let applicantValue = household.applicant.initialBalance;
   let spouseValue = 0;
   let totalSupport = 0;
   let householdContributionValue = 0;
   let householdContributionRealValue = 0;
+  let householdInflowValue = 0;
+  let householdInflowRealValue = 0;
   let cumulativeInflation = 1;
   const monthlyFeeFactor = Math.pow(1 - household.annualFeeRate, 1 / 12);
   let applicantMonthlyWithdrawalReal = 0;
@@ -1613,6 +1682,8 @@ function projectPath(household, bootstrap, now, years) {
   const householdReal = [applicantValue];
   const householdContributionNominal = [0];
   const householdContributionReal = [0];
+  const householdInflowNominal = [0];
+  const householdInflowReal = [0];
   const householdWithdrawalNominal = [0];
   const householdWithdrawalReal = [0];
   const chartYearStart = now.getFullYear();
@@ -1631,8 +1702,11 @@ function projectPath(household, bootstrap, now, years) {
     const nextMonthDate = addMonths(now, monthIndex + 1);
 
     const applicantAgeAtMonth = preciseAge(household.applicant.birthdate, monthDate);
-    const applicantContribution =
+    const applicantBaseContribution =
       applicantAgeAtMonth < household.applicant.retirementAge ? household.applicant.monthlyContribution : 0;
+    const applicantContribution = adjustInflowsForInflation
+      ? applicantBaseContribution * cumulativeInflation
+      : applicantBaseContribution;
     applicantValue = (applicantValue * (1 + monthlyReturn) + applicantContribution) * monthlyFeeFactor;
     if (
       applicantMonthlyWithdrawalReal === 0 &&
@@ -1646,11 +1720,15 @@ function projectPath(household, bootstrap, now, years) {
     applicantAnnualContribution += applicantContribution;
     householdContributionValue += applicantContribution;
     householdContributionRealValue += applicantContribution / cumulativeInflation;
+    householdInflowValue += applicantContribution;
+    householdInflowRealValue += applicantContribution / cumulativeInflation;
 
     let spouseContribution = 0;
     if (household.spouse) {
       const spouseAgeAtMonth = preciseAge(household.spouse.birthdate, monthDate);
-      spouseContribution = spouseAgeAtMonth < household.spouse.retirementAge ? household.spouse.monthlyContribution : 0;
+      const spouseBaseContribution =
+        spouseAgeAtMonth < household.spouse.retirementAge ? household.spouse.monthlyContribution : 0;
+      spouseContribution = adjustInflowsForInflation ? spouseBaseContribution * cumulativeInflation : spouseBaseContribution;
       spouseValue = (spouseValue * (1 + monthlyReturn) + spouseContribution) * monthlyFeeFactor;
       if (
         spouseMonthlyWithdrawalReal === 0 &&
@@ -1662,6 +1740,8 @@ function projectPath(household, bootstrap, now, years) {
       spouseAnnualContribution += spouseContribution;
       householdContributionValue += spouseContribution;
       householdContributionRealValue += spouseContribution / cumulativeInflation;
+      householdInflowValue += spouseContribution;
+      householdInflowRealValue += spouseContribution / cumulativeInflation;
     }
 
     cumulativeInflation *= monthlySample.inflationRatio;
@@ -1676,10 +1756,15 @@ function projectPath(household, bootstrap, now, years) {
         yearEndDate,
         yearIndex,
       });
+      const supportInflationFactor = adjustInflowsForInflation ? cumulativeInflation : 1;
+      const applicantSupport = support.applicant * supportInflationFactor;
+      const spouseSupport = support.spouse * supportInflationFactor;
 
-      applicantValue += support.applicant;
-      spouseValue += support.spouse;
-      totalSupport += support.applicant + support.spouse;
+      applicantValue += applicantSupport;
+      spouseValue += spouseSupport;
+      totalSupport += applicantSupport + spouseSupport;
+      householdInflowValue += applicantSupport + spouseSupport;
+      householdInflowRealValue += (applicantSupport + spouseSupport) / cumulativeInflation;
 
       applicantNominal.push(applicantValue);
       spouseNominal.push(spouseValue);
@@ -1689,6 +1774,8 @@ function projectPath(household, bootstrap, now, years) {
       householdReal.push((applicantValue + spouseValue) / cumulativeInflation);
       householdContributionNominal.push(householdContributionValue);
       householdContributionReal.push(householdContributionRealValue);
+      householdInflowNominal.push(householdInflowValue);
+      householdInflowReal.push(householdInflowRealValue);
       householdWithdrawalNominal.push((applicantMonthlyWithdrawalReal + spouseMonthlyWithdrawalReal) * cumulativeInflation);
       householdWithdrawalReal.push(applicantMonthlyWithdrawalReal + spouseMonthlyWithdrawalReal);
 
@@ -1703,6 +1790,8 @@ function projectPath(household, bootstrap, now, years) {
     chartBucket.real.household += householdNominalValue / cumulativeInflation;
     chartBucket.nominal.contributions += householdContributionValue;
     chartBucket.real.contributions += householdContributionRealValue;
+    chartBucket.nominal.inflows += householdInflowValue;
+    chartBucket.real.inflows += householdInflowRealValue;
     chartBucket.nominal.withdrawals += (applicantMonthlyWithdrawalReal + spouseMonthlyWithdrawalReal) * cumulativeInflation;
     chartBucket.real.withdrawals += applicantMonthlyWithdrawalReal + spouseMonthlyWithdrawalReal;
   }
@@ -1716,6 +1805,8 @@ function projectPath(household, bootstrap, now, years) {
     householdReal.push((applicantValue + spouseValue) / cumulativeInflation);
     householdContributionNominal.push(householdContributionValue);
     householdContributionReal.push(householdContributionRealValue);
+    householdInflowNominal.push(householdInflowValue);
+    householdInflowReal.push(householdInflowRealValue);
     householdWithdrawalNominal.push((applicantMonthlyWithdrawalReal + spouseMonthlyWithdrawalReal) * cumulativeInflation);
     householdWithdrawalReal.push(applicantMonthlyWithdrawalReal + spouseMonthlyWithdrawalReal);
   }
@@ -1729,6 +1820,8 @@ function projectPath(household, bootstrap, now, years) {
     householdReal,
     householdContributionNominal,
     householdContributionReal,
+    householdInflowNominal,
+    householdInflowReal,
     householdWithdrawalNominal,
     householdWithdrawalReal,
     chartStats: chartBuckets.map(finalizeChartYearBucket),
@@ -1743,11 +1836,13 @@ function createChartYearBucket(year) {
     nominal: {
       household: 0,
       contributions: 0,
+      inflows: 0,
       withdrawals: 0,
     },
     real: {
       household: 0,
       contributions: 0,
+      inflows: 0,
       withdrawals: 0,
     },
   };
@@ -1760,11 +1855,13 @@ function finalizeChartYearBucket(bucket) {
     nominal: {
       household: bucket.nominal.household / divisor,
       contributions: bucket.nominal.contributions / divisor,
+      inflows: bucket.nominal.inflows / divisor,
       withdrawals: bucket.nominal.withdrawals / divisor,
     },
     real: {
       household: bucket.real.household / divisor,
       contributions: bucket.real.contributions / divisor,
+      inflows: bucket.real.inflows / divisor,
       withdrawals: bucket.real.withdrawals / divisor,
     },
   };
@@ -1961,6 +2058,9 @@ function firstWithdrawalYearIndex(result, seriesType) {
   return result.preRetirementYear;
 }
 
+function inflowSeriesType() {
+  return uiState.adjustInflowsForInflation ? "real" : "nominal";
+}
 function renderChart(result) {
   const svg = elements.chartSvg;
   const width = 920;
@@ -1970,9 +2070,10 @@ function renderChart(result) {
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
   const seriesType = seriesTypeForResult(result);
+  const inflowType = inflowSeriesType();
   const points = result.chartStats;
   const preRetirementPoints = points.slice(0, result.preRetirementChartIndex + 1);
-  const yAxis = buildNiceYAxis(resolveChartMaxY(preRetirementPoints, seriesType));
+  const yAxis = buildNiceYAxis(resolveChartMaxY(preRetirementPoints, seriesType, inflowType));
   const maxY = yAxis.max;
   const chartLength = Math.max(points.length - 1, 1);
   const xScale = (chartIndex) => margin.left + (plotWidth * chartIndex) / chartLength;
@@ -1985,6 +2086,7 @@ function renderChart(result) {
     plotWidth,
     result,
     seriesType,
+    inflowType,
     width,
     xScale,
     yScale,
@@ -2023,12 +2125,12 @@ function renderChart(result) {
   const contributionsPrePath = buildLinePath(
     points.slice(0, result.preRetirementChartIndex + 1),
     xScale,
-    (point) => yScale(point[seriesType].contributions.median),
+    (point) => yScale(point[inflowType].inflows.median),
   );
   const contributionsPostPath = buildLinePath(
     points.slice(result.preRetirementChartIndex),
     xScale,
-    (point) => yScale(point[seriesType].contributions.median),
+    (point) => yScale(point[inflowType].inflows.median),
   );
 
   const applicantMarker = markerLine(
@@ -2119,10 +2221,10 @@ function updateChartHover() {
   }
 
   const householdValue = point[latestChartRenderState.seriesType].household.median;
-  const contributionValue = point[latestChartRenderState.seriesType].contributions.median;
+  const inflowValue = point[latestChartRenderState.inflowType].inflows.median;
   const x = latestChartRenderState.xScale(hoverState.yearIndex);
   const y = latestChartRenderState.yScale(householdValue);
-  const contributionY = latestChartRenderState.yScale(contributionValue);
+  const contributionY = latestChartRenderState.yScale(inflowValue);
   hoverLayer.classList.remove("hidden");
   elements.chartSvg.querySelector("#hover-line")?.setAttribute("x1", String(x));
   elements.chartSvg.querySelector("#hover-line")?.setAttribute("x2", String(x));
@@ -2148,7 +2250,11 @@ function updateTooltip(result, yearIndex, pointerX = 20, pointerY = 20) {
   }
 
   lines.push(`<span>${t("chart.medianLabel")}: ${formatCurrency(point[type].household.median)}</span>`);
-  lines.push(`<span>${contributionsLabel}: ${formatCurrency(point[type].contributions.median)}</span>`);
+  const inflowModeLabel =
+    latestChartRenderState.inflowType === "real"
+      ? t("status.inflowsAdjusted").replace(/\.$/, "")
+      : t("status.inflowsNominal").replace(/\.$/, "");
+  lines.push(`<span>${contributionsLabel} (${inflowModeLabel}): ${formatCurrencyDetailed(point[latestChartRenderState.inflowType].inflows.median)}</span>`);
   lines.push(
     `<span>${t("chart.bandLabel")}: ${formatCurrency(point[type].household.p2_5)} ${t("compactUnits.rangeBandSeparator")} ${formatCurrency(point[type].household.p97_5)}</span>`,
   );
@@ -2214,10 +2320,10 @@ function buildLinePath(points, xScale, ySelector) {
     .join(" ");
 }
 
-function resolveChartMaxY(points, seriesType) {
+function resolveChartMaxY(points, seriesType, inflowType) {
   const candidates = [];
   for (const point of points) {
-    candidates.push(point[seriesType].household.median, point[seriesType].contributions.median);
+    candidates.push(point[seriesType].household.median, point[inflowType].inflows.median);
     if (uiState.showConfidenceBand) {
       candidates.push(point[seriesType].household.p97_5);
     }
@@ -2305,6 +2411,12 @@ function clamp(value, min, max) {
 
 function syncChartToggleButtons() {
   setToggleState(elements.inflationToggle, uiState.adjustInflation, t("chart.inflationOff"), t("chart.inflationOn"));
+  setToggleState(
+    elements.inflowsInflationToggle,
+    uiState.adjustInflowsForInflation,
+    t("chart.inflowsAdjustedOff"),
+    t("chart.inflowsAdjustedOn"),
+  );
   setToggleState(elements.ciToggle, uiState.showConfidenceBand, t("chart.confidenceBandOff"), t("chart.confidenceBandOn"));
 }
 
