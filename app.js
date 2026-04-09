@@ -1562,9 +1562,9 @@ function simulateHousehold(household, data, options = {}) {
     });
   }
 
-  const retirementYear = clamp(Math.round(household.applicant.retirementAge - applicantAge), 0, years);
+  const retirementYear = clamp(Math.ceil(household.applicant.retirementAge - applicantAge), 0, years);
   const spouseRetirementYear =
-    spouseAgeNow === null ? null : clamp(Math.round(household.spouse.retirementAge - spouseAgeNow), 0, years);
+    spouseAgeNow === null ? null : clamp(Math.ceil(household.spouse.retirementAge - spouseAgeNow), 0, years);
   const preRetirementYear = Math.max(retirementYear, spouseRetirementYear ?? retirementYear);
   const applicantRetirementDate = retirementDateForPerson(household.applicant.birthdate, household.applicant.retirementAge);
   const spouseRetirementDate = household.spouse

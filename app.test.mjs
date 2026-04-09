@@ -7,6 +7,7 @@ import {
   buildDataStatusText,
   chartLoadingPatternText,
   parseChildBirthYearInput,
+  retirementSummaryValues,
   setLanguage,
   simulateHousehold,
 } from "./app.js";
@@ -178,6 +179,55 @@ test("annualSupportForYear grants the full child allowance from 25 euros per mon
 
   assert.equal(belowThreshold.applicant, 360);
   assert.equal(atThreshold.applicant, 450);
+});
+
+test("withdrawal summary does not select a pre-applicant-retirement spouse-only year", () => {
+  const now = new Date(2025, 0, 1);
+  const bootstrapSeries = Array.from({ length: 55 * 12 }, (_, index) => ({
+    inflationRatio: 1.001 + (index % 7) * 0.0003,
+    key: `reg-${index}`,
+    marketReturn: -0.01 + (index % 17) * 0.002,
+  }));
+
+  const applicant = {
+    birthdate: new Date(1990, 6, 1),
+    incomeRate: 0.3,
+    initialBalance: 0,
+    monthlyContribution: 150,
+    retirementAge: 67,
+  };
+  const singleHousehold = {
+    annualFeeRate: 0.002,
+    applicant,
+    children: [],
+    spouse: null,
+  };
+  const spouseHousehold = {
+    annualFeeRate: 0.002,
+    applicant,
+    children: [],
+    spouse: {
+      birthdate: new Date(1985, 6, 1),
+      incomeRate: 0.3,
+      monthlyContribution: 150,
+      retirementAge: 67,
+    },
+  };
+  const options = {
+    maxAge: 90,
+    now,
+    simulationCount: 300,
+    simulationSeedOffset: 0,
+  };
+
+  const singleResult = simulateHousehold(singleHousehold, bootstrapSeries, options);
+  const spouseResult = simulateHousehold(spouseHousehold, bootstrapSeries, options);
+
+  const singleWithdrawal = retirementSummaryValues(singleResult, true).withdrawalIncome;
+  const spouseWithdrawal = retirementSummaryValues(spouseResult, true).withdrawalIncome;
+
+  assert.equal(singleResult.preRetirementYear, spouseResult.preRetirementYear);
+  assert.ok(spouseWithdrawal >= singleWithdrawal);
 });
 
 test("worker computation matches direct simulation for a fixed request", () => {
