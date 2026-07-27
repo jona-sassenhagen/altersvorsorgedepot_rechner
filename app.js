@@ -85,6 +85,7 @@ const TRANSLATIONS = {
       blocks: "15-Jahres-Blöcke",
       retirementValue: "Ø Depotwert bei Rentenbeginn",
       withdrawalIncome: "Ø Zusatzrente (Brutto)",
+      withdrawalRateCaption: "Entnahme% (Erfolg%)",
       retirementBand: "95%-Band bei Renteneintritt",
       averageSupport: "Ø jährliche Förderung",
     },
@@ -287,6 +288,7 @@ const TRANSLATIONS = {
       blocks: "15-year blocks",
       retirementValue: "Avg. portfolio value at retirement",
       withdrawalIncome: "Avg. extra income (gross)",
+      withdrawalRateCaption: "Withdrawal% (success%)",
       retirementBand: "95% band at retirement",
       averageSupport: "Avg. annual subsidy",
     },
@@ -960,7 +962,7 @@ function syncWithdrawalRateControl(result = latestChartState) {
       (candidate) => Math.abs(candidate.withdrawalRate - rate) < 1e-12,
     );
     option.textContent = stats
-      ? `${formatWithdrawalRate(rate)} · ${formatReturnPercent(stats.successRate)}`
+      ? `${formatWithdrawalRate(rate)} (${formatReturnPercent(stats.successRate)})`
       : formatWithdrawalRate(rate);
   }
   if (result) {

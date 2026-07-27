@@ -945,7 +945,7 @@ button:focus-visible {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(215px, 1.06fr) repeat(2, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 28px;
   position: relative;
@@ -981,35 +981,78 @@ button:focus-visible {
   font-weight: 500;
 }
 
-.withdrawal-summary-heading {
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+.withdrawal-rate-picker {
+  display: grid;
+  flex: 0 0 116px;
+  gap: 3px;
   min-width: 0;
-  line-height: 1.35;
+  position: relative;
 }
 
-.withdrawal-rate-picker {
-  display: inline-flex;
-  flex: 0 0 auto;
+.withdrawal-rate-picker::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  bottom: 10px;
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid var(--accent-strong);
+  border-bottom: 1.5px solid var(--accent-strong);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.withdrawal-rate-caption {
+  color: var(--muted);
+  font-size: 0.57rem;
+  font-weight: 600;
+  letter-spacing: 0.055em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .withdrawal-rate-picker #withdrawal-rate {
-  width: min(148px, 100%);
-  min-height: 34px;
-  padding: 5px 8px;
-  border-radius: 999px;
+  width: 100%;
+  min-height: 30px;
+  padding: 4px 20px 4px 7px;
+  appearance: none;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 6px;
   color: var(--accent-strong);
-  font-size: 0.76rem;
-  font-weight: 700;
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1;
   cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.withdrawal-rate-picker #withdrawal-rate:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.withdrawal-rate-picker #withdrawal-rate:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  outline: none;
 }
 
 .withdrawal-summary-value {
-  display: grid;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
   align-self: end;
+  gap: 12px;
+  min-width: 0;
+}
+
+.withdrawal-summary-value > strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-bottom: 5px;
 }
 
 #withdrawal-income[aria-busy="true"],
@@ -1408,12 +1451,17 @@ code {
 
 /* --- Responsive --- */
 
+@media (max-width: 1320px) {
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1120px) {
   .layout {
     grid-template-columns: 1fr;
   }
 
-  .summary-grid,
   .notes-grid,
   .note-card-wide {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1475,8 +1523,7 @@ code {
   }
 
   .withdrawal-rate-picker #withdrawal-rate {
-    min-height: 36px;
-    width: min(152px, 100%);
+    min-height: 34px;
   }
 
   .tax-button-group {
@@ -1577,6 +1624,21 @@ code {
   }
 
   .withdrawal-summary-card {
-    min-height: 132px;
+    min-height: 142px;
+  }
+
+  .withdrawal-summary-value {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .withdrawal-summary-value > strong {
+    padding-bottom: 0;
+  }
+
+  .withdrawal-rate-picker {
+    flex-basis: auto;
+    width: 100%;
   }
 }

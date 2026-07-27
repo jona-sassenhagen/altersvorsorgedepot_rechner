@@ -894,7 +894,8 @@ test("withdrawal diagnostics and model qualifications are exposed accessibly", a
   assert.match(html, /aria-describedby="withdrawal-rate-help"/);
   assert.match(html, /aria-live="polite"/);
   assert.match(css, /\.withdrawal-info-tooltip[\s\S]*white-space: pre-line/);
-  assert.match(css, /\.withdrawal-rate-picker #withdrawal-rate[\s\S]*?width: min\(148px, 100%\)/);
+  assert.match(css, /\.withdrawal-rate-picker #withdrawal-rate[\s\S]*?width: 100%/);
+  assert.match(css, /\.withdrawal-rate-caption[\s\S]*?text-transform: uppercase/);
   assert.match(css, /@media \(max-width: 420px\)[\s\S]*?\.summary-grid[\s\S]*?grid-template-columns: 1fr/);
   assert.match(css, /\.summary-grid\s*\{[\s\S]*?position: relative;[\s\S]*?z-index: 2;/);
   assert.match(css, /\.chart-panel\s*\{[\s\S]*?position: relative;[\s\S]*?z-index: 1;/);
@@ -903,6 +904,7 @@ test("withdrawal diagnostics and model qualifications are exposed accessibly", a
   assert.match(source, /withdrawalRateStatus/);
   assert.match(source, /withdrawalRateCandidates: WITHDRAWAL_RATE_OPTIONS/);
   assert.match(source, /withdrawalRate: Number\(elements\.withdrawalRate\.value\)/);
+  assert.match(source, /formatWithdrawalRate\(rate\)} \(\${formatReturnPercent\(stats\.successRate\)}\)/);
   assert.match(source, /displayed value is the median modeled extra income/);
   assert.match(source, /first household income shortfall/);
   assert.match(assumptions, /gesamte modellierte Steuererstattung[\s\S]*wieder/);
