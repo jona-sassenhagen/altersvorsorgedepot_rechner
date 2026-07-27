@@ -52,7 +52,7 @@
           </div>
 
           <form id="calculator-form" class="form-grid">
-            <section class="form-section">
+            <section class="form-section projection-assumptions-controls">
               <label class="fee-row">
                   <span class="label-with-info">
                   <span data-i18n="controls.productFee">Produktkosten pro Jahr</span>
@@ -73,6 +73,38 @@
                 />
                 <span>%</span>
               </label>
+
+              <div class="return-control">
+                <label class="return-input-row" for="expected-real-return">
+                  <span class="label-with-info">
+                    <span data-i18n="controls.expectedRealReturn">Erwartete reale Rendite p.a.</span>
+                    <span class="info-wrap" data-tooltip-key="expectedRealReturn">
+                      <button class="info-button" type="button" aria-label="Info zur erwarteten realen Rendite" data-i18n-aria-label="aria.expectedRealReturnInfo">i</button>
+                      <span class="info-tooltip"></span>
+                    </span>
+                  </span>
+                  <span class="return-input-shell">
+                    <input
+                      id="expected-real-return"
+                      name="expectedRealReturn"
+                      type="number"
+                      min="-100"
+                      max="100"
+                      step="0.1"
+                      value="3.0"
+                      inputmode="decimal"
+                      aria-label="Erwartete reale Rendite pro Jahr in Prozent"
+                      data-i18n-aria-label="aria.expectedRealReturnInput"
+                    />
+                    <span aria-hidden="true">%</span>
+                  </span>
+                </label>
+                <div class="return-preset-row" role="group" aria-label="Voreinstellungen für die reale Rendite" data-i18n-aria-label="aria.expectedRealReturnPresets">
+                  <button class="preset-button return-preset-button" type="button" data-return-preset="0.03">3 %</button>
+                  <button class="preset-button return-preset-button" type="button" data-return-preset="historical" data-i18n="controls.historicalReturnPreset">Historisch</button>
+                  <button class="preset-button return-preset-button" type="button" data-return-preset="0.1">10 %</button>
+                </div>
+              </div>
             </section>
 
             <section class="form-section">
@@ -215,6 +247,30 @@
                 <h3 data-i18n="controls.children">Kinder</h3>
                 <button id="add-child" class="ghost-button small-button" type="button" data-i18n="controls.addChild">Kind hinzufügen</button>
               </div>
+              <label class="child-benefit-duration-row" for="child-benefit-duration">
+                <span class="label-with-info">
+                  <span data-i18n="controls.childBenefitDuration">Dauer des Kindergeldbezugs</span>
+                  <span class="info-wrap" data-tooltip-key="childBenefitDuration">
+                    <button class="info-button" type="button" aria-label="Info zur Dauer des Kindergeldbezugs" data-i18n-aria-label="aria.childBenefitDurationInfo">i</button>
+                    <span class="info-tooltip"></span>
+                  </span>
+                </span>
+                <span class="child-duration-input-shell">
+                  <input
+                    id="child-benefit-duration"
+                    name="childBenefitDuration"
+                    type="number"
+                    min="16"
+                    max="25"
+                    step="1"
+                    value="18"
+                    inputmode="numeric"
+                    aria-label="Dauer des Kindergeldbezugs in Jahren"
+                    data-i18n-aria-label="aria.childBenefitDurationInput"
+                  />
+                  <span data-i18n="controls.years">Jahre</span>
+                </span>
+              </label>
               <div id="children-list" class="children-list"></div>
               <p id="children-hint" class="hint hidden" data-i18n="controls.childrenHint">Kinder werden bis zum 18. Lebensjahr für die modellierte Kinderförderung berücksichtigt.</p>
             </section>
@@ -247,15 +303,47 @@
               </span>
               <strong id="retirement-value">-</strong>
             </article>
-            <article class="summary-card">
+            <article class="summary-card withdrawal-summary-card">
               <span class="summary-label label-with-info">
-                <span data-i18n="results.withdrawalIncome">Ø Zusatzrente bei 4% Entnahme</span>
+                <span class="withdrawal-summary-heading">
+                  <span data-i18n="results.withdrawalIncome">Ø Zusatzrente (Brutto)</span>
+                  <label class="withdrawal-rate-picker" for="withdrawal-rate">
+                    <span class="visually-hidden" data-i18n="aria.withdrawalRate">Jährlichen Entnahmesatz wählen</span>
+                    <select
+                      id="withdrawal-rate"
+                      name="withdrawalRate"
+                      aria-describedby="withdrawal-rate-help"
+                    >
+                      <option value="0.03">3 %</option>
+                      <option value="0.0325">3,25 %</option>
+                      <option value="0.035">3,5 %</option>
+                      <option value="0.0375">3,75 %</option>
+                      <option value="0.04" selected>4 %</option>
+                      <option value="0.0425">4,25 %</option>
+                      <option value="0.045">4,5 %</option>
+                      <option value="0.0475">4,75 %</option>
+                      <option value="0.05">5 %</option>
+                    </select>
+                    <span id="withdrawal-rate-help" class="visually-hidden" data-i18n="aria.withdrawalRateHelp">
+                      Die zweite Prozentzahl je Option ist der Anteil der Pfade ohne Entnahmelücke bis zum Modellende im Alter 90 der antragstellenden Person.
+                    </span>
+                  </label>
+                </span>
                     <span class="info-wrap" data-tooltip-key="withdrawalRule">
-                      <button class="info-button" type="button" aria-label="Info zu Zusatzrente bei 4 Prozent Entnahme" data-i18n-aria-label="aria.withdrawalRuleInfo">i</button>
-                      <span class="info-tooltip"></span>
+                      <button class="info-button" type="button" aria-label="Info zur Brutto-Zusatzrente, Erfolgsquote und möglichen Entnahmelücken beim gewählten Entnahmesatz" data-i18n-aria-label="aria.withdrawalRuleInfo" aria-describedby="withdrawal-rule-tooltip">i</button>
+                      <span id="withdrawal-rule-tooltip" class="info-tooltip withdrawal-info-tooltip" role="tooltip"></span>
                     </span>
               </span>
-              <strong id="withdrawal-income">-</strong>
+              <div class="withdrawal-summary-value">
+                <strong id="withdrawal-income">-</strong>
+                <span
+                  id="withdrawal-rate-status"
+                  class="visually-hidden"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                ></span>
+              </div>
             </article>
             <article class="summary-card">
               <span class="summary-label label-with-info">
@@ -283,7 +371,7 @@
             <div class="chart-header">
               <div>
                 <h3 data-i18n="chart.title">Wertentwicklung des Depots</h3>
-                <p data-i18n="chart.subtitle">Depotwert und eigene Einzahlungen im Zeitverlauf. Nach dem Renteneintritt wird eine Entnahme nach der 4%-Regel angenommen.</p>
+                <p data-i18n="chart.subtitle">Depotwert und eigene Einzahlungen im Zeitverlauf. Nach dem Renteneintritt wird eine Entnahme mit dem gewählten Entnahmesatz angenommen.</p>
               </div>
               <div class="chart-tools">
                 <div class="chart-toggle-row">
@@ -304,7 +392,7 @@
             <div id="chart-wrapper" class="chart-wrapper">
               <svg id="chart-svg" viewBox="0 0 920 420" preserveAspectRatio="none" aria-labelledby="chart-title chart-desc" role="img">
                 <title id="chart-title" data-i18n="chart.svgTitle">Projektion des Depotvermögens</title>
-                <desc id="chart-desc" data-i18n="chart.svgDesc">Zeitreihe mit Depotwert, eigenen Einzahlungen, 95-Prozent-Band, Markierungen zum Renteneintritt und Entnahmen nach der 4%-Regel.</desc>
+                <desc id="chart-desc" data-i18n="chart.svgDesc">Zeitreihe mit Depotwert, eigenen Einzahlungen, 95-Prozent-Band, Markierungen zum Renteneintritt und Entnahmen mit dem gewählten Entnahmesatz.</desc>
               </svg>
               <div id="chart-loading" class="chart-loading hidden" role="status" aria-live="polite" aria-label="Berechnung laeuft" data-i18n-aria-label="chart.loadingAria">.</div>
               <div id="chart-tooltip" class="chart-tooltip hidden"></div>
@@ -318,11 +406,11 @@
             <section class="note-section">
               <h3 data-i18n="notes.assumptionsTitle">Annahmen</h3>
               <p data-i18n="notes.assumptionsBody1">
-                Diese Vorschau zeigt, wie sich ein Altersvorsorgedepot bei gleichbleibenden monatlichen Einzahlungen entwickeln könnte. Dafür werden historische Marktphasen des MSCI World in 15-Jahres-Blöcken kombiniert und 2.500 mögliche Verläufe berechnet.
+                Diese Vorschau zeigt, wie sich ein Altersvorsorgedepot bei gleichbleibenden monatlichen Einzahlungen entwickeln könnte. Dafür werden historische Marktphasen des MSCI World in zirkulären 15-Jahres-Blöcken kombiniert und 2.500 mögliche Verläufe berechnet. Die zentrale Projektion ist der Median: 50 % der Ergebnisse liegen darunter und 50 % darüber. Die reale Renditeannahme verschiebt das langfristige Renditeniveau, während Schwankungen, Krisen, Inflation und zeitliche Zusammenhänge erhalten bleiben.
               </p>
               <p data-i18n-html="notes.assumptionsBody2">
                 Direkte Förderung, Kinderförderung und der vereinfachte Steuervorteil folgen den
-                <a href="./Annahmen.md">Annahmen in diesem Projekt</a>. Nach dem Renteneintritt enden neue Einzahlungen, und aus dem angesparten Vermögen wird eine Entnahme nach der 4%-Regel modelliert. Auf Wunsch werden jährliche Produktkosten in die Projektion eingerechnet.
+                <a href="./Annahmen.md">Annahmen in diesem Projekt</a>. Die modellierte Steuererstattung wird vollständig wieder in das Depot investiert. Nach dem Renteneintritt enden neue Einzahlungen; die Brutto-Entnahme mit dem gewählten Entnahmesatz ist auf das tatsächlich verfügbare Depotvermögen begrenzt. Auf Wunsch werden jährliche Produktkosten eingerechnet.
                 Weitere offizielle Informationen zur Reform der privaten Altersvorsorge gibt es beim
                 <a href="https://www.bundesfinanzministerium.de/Content/DE/FAQ/reform-der-privaten-altersvorsorge.html">Bundesfinanzministerium</a>.
               </p>
@@ -332,9 +420,12 @@
               <p data-i18n-html="notes.dataBody">
                 Die Wertentwicklung basiert auf MSCI-World-Daten von
                 <a href="https://curvo.eu/backtest/en/market-index/msci-world?currency=eur">Curvo</a>.
-                Die Inflationsdaten für Deutschland stammen aus Quellen wie
-                <a href="https://fred.stlouisfed.org/">FRED</a> und der
-                <a href="https://www.oecd.org/">OECD</a>.
+                Der Index wurde 1986 aufgelegt; frühere Werte sind rückgerechnete Backtest-Daten.
+                Die deutsche CPI-Zeitreihe stammt bis März 2025 von
+                <a href="https://fred.stlouisfed.org/series/DEUCPIALLMINMEI">FRED/OECD</a>
+                und wird ab April 2025 mit Daten des
+                <a href="https://www.destatis.de/DE/Themen/Wirtschaft/Preise/Verbraucherpreisindex/_inhalt.html">Statistischen Bundesamts</a>
+                fortgeführt.
               </p>
             </section>
             <section class="note-section">

@@ -39,20 +39,22 @@ Der Rechner modelliert einen Haushalt mit:
 - null oder mehr Kindern
 - genau einer Kapitalanlage: MSCI World in EUR
 
-Die App projiziert nur die Ansparphase. Auszahlungsprodukte, Entnahmestrategien, Steuern in der Auszahlungsphase und anbieterindividuelle Kosten werden nicht modelliert.
+Die App projiziert die Ansparphase und anschließend ein vereinfachtes Brutto-Entnahmeszenario mit einem wählbaren anfänglichen jährlichen Entnahmesatz von 3 bis 5 Prozent (Standard: 4 Prozent). Tatsächliche Entnahmen sind auf das im jeweiligen persönlichen Depot verfügbare Vermögen begrenzt. Auszahlungsprodukte, Steuern in der Auszahlungsphase und alternative Entnahmestrategien werden nicht modelliert.
 
 ## Simulationsannahmen
 
 - Historische Datenquelle: die lokal im Repository gespeicherte Curvo-CSV.
 - Renditefrequenz: monatlich.
-- Bootstrap-Methode: sequentieller 15-Jahres-Block-Bootstrap auf Monatsrenditen.
+- Bootstrap-Methode: zirkulärer 15-Jahres-Block-Bootstrap auf Monatsrenditen. Jeder historische Monat hat dadurch dieselbe Einschlusswahrscheinlichkeit; ein Block kann am Ende der Datenreihe zum Anfang zurückspringen.
 - Anzahl Simulationen: 2.500.
 - Projektionshorizont: ab heute bis zum 90. Lebensjahr der antragstellenden Person.
 - Beiträge enden mit dem Renteneintrittsalter.
 - Standard-Renteneintrittsalter: 67.
 - Das Renteneintrittsalter ist editierbar und gilt in v1 für beide Erwachsenen.
-- Das Vermögen wächst nach Rentenbeginn bis Alter 90 weiter.
-- Die Grafik zeigt jährliche Stichtage, den Medianpfad und ein 95-Prozent-Konfidenzintervall.
+- Das Vermögen wächst nach Rentenbeginn bis Alter 90 abzüglich der tatsächlich bezahlbaren modellierten Entnahmen weiter.
+- Die zentrale Projektion ist der Median, nicht der arithmetische Erwartungswert: 50 Prozent der modellierten Ergebnisse liegen darunter und 50 Prozent darüber.
+- Die Grafik zeigt jährliche Stichtage, den Medianpfad und ein 95-Prozent-Modellband aus den simulierten Ergebnissen.
+- Ein Entnahmepfad gilt bis zum Modellende als erfolgreich, wenn jedes persönliche Depot alle mit dem gewählten Entnahmesatz geplanten Entnahmen vollständig leisten kann. Andernfalls werden das Alter der antragstellenden Person beim ersten Haushalts-Einkommensfehlbetrag und die kumulierte Entnahmelücke erfasst.
 
 ## Haushalts- und Alterslogik
 
@@ -88,7 +90,8 @@ Kinder-Geburtsdaten sind Teil der Eingabe, weil Familienförderung im Umfang der
 
 Die App trifft dazu folgende bewusste Vereinfachung:
 
-- Jedes eingetragene Kind gilt bis zum 18. Lebensjahr als förderrelevant.
+- Die Dauer des modellierten Kindergeldbezugs ist im Rechner zwischen 16 und 25 Jahren einstellbar und beträgt standardmäßig 18 Jahre.
+- Jedes eingetragene Kind gilt bis zum Ende der eingestellten Dauer als förderrelevant.
 - In verheirateten Haushalten wird die Kinderförderung proportional zu den förderfähigen Jahresbeiträgen beider Partner bis jeweils EUR 300 aufgeteilt.
 - In Ein-Personen-Haushalten wird die gesamte Kinderförderung der antragstellenden Person zugerechnet.
 - Unterhalb von EUR 300 Jahresbeitrag modelliert die App die Kinderzulage proportional ansteigend; ab EUR 300 wird pro Kind die volle EUR-300-Zulage angesetzt.
@@ -102,6 +105,7 @@ Die App verwendet ein vereinfachtes Grenzsteuersatz-Modell.
 - Jede Einkommensklasse wird auf einen repräsentativen Grenzsteuersatz abgebildet.
 - Der geschätzte jährliche Steuervorteil je erwachsener Person ist:
   - `max(förderfähiger Jahresbeitrag * Grenzsteuersatz - direkte Förderung dieser Person, 0)`
+- Die App nimmt ausdrücklich an, dass die gesamte modellierte Steuererstattung am Jahresende wieder in das jeweilige Altersvorsorgedepot eingezahlt und weiter investiert wird. Das geschieht in der Realität nicht automatisch.
 - In v1 ist der förderfähige Jahresbeitrag für den vereinfachten `Sonderausgabenabzug` auf EUR 1.800 gedeckelt, also auf die im BMF-Entwurf beschriebene Fördergrenze der neuen proportionalen Förderung.
 - Beiträge oberhalb von EUR 1.800 werden investiert, erhöhen aber nicht die modellierte Förderung oder den modellierten Steuervorteil.
 
@@ -120,8 +124,10 @@ Diese Klassen sind Modellannahmen, keine gesetzlichen Tarifzonen:
 ## Inflationsbehandlung
 
 - Die App verwendet eine lokale monatliche deutsche CPI-Zeitreihe aus `inflation.csv`.
+- Der MSCI World wurde erst 1986 aufgelegt. Die in der Curvo-Reihe enthaltenen Werte vor 1986 sind rückgerechnete Backtest-Daten und keine damals tatsächlich veröffentlichten Indexstände.
+- Die Reihe stammt bis März 2025 von FRED/OECD (`DEUCPIALLMINMEI`) und wird ab April 2025 mit dem deutschen Verbraucherpreisindex von Destatis fortgeführt.
 - Wenn die Inflationsoption aktiviert ist, werden Ergebnisse in Preisen des letzten verfügbaren CPI-Monats ausgewiesen.
-- Da die CPI-Reihe derzeit bis Dezember 2025 reicht, wird für spätere Projektionsmonate in v1 die letzte verfügbare Inflationsrate fortgeschrieben.
+- Für spätere Projektionsmonate werden die historischen monatlichen Inflationsverhältnisse gemeinsam mit den zugehörigen Marktrenditen im Block-Bootstrap gezogen.
 - Historische Kapitalmarktdaten und CPI-Daten werden monatlich zusammengeführt, damit nominale und reale Ergebnisse aus demselben Simulationspfad entstehen.
 
 ## Explizite Ausschlüsse
@@ -130,7 +136,7 @@ Folgende Punkte sind in v1 bewusst nicht enthalten:
 
 - Live-Datenabruf von Curvo oder anderen Diensten
 - das separate kindeigene `Frühstart-Rente`-Depot
-- Anbietergebühren, Handelskosten, Steuern in der Auszahlungsphase oder Entnahmestrategien
+- Anbietergebühren, Handelskosten, Steuern in der Auszahlungsphase oder alternative Entnahmestrategien
 - andere Fonds als MSCI World
 - alte Riester-Bestandsregeln außer den wenigen hier explizit genannten Entwurfsübernahmen
 - rechtliche Detailprüfungen der Förderberechtigung
