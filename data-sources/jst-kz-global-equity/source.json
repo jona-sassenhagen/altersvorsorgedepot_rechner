@@ -1,0 +1,48 @@
+{
+  "id": "jst-kz-global-equity-monthly-v1",
+  "label": "JST/KZ global developed equity (synthetic monthly before 1970)",
+  "status": "active-default",
+  "marketDataPath": "../../jst_kz_global_equity_monthly.csv",
+  "syntheticPeriod": {
+    "start": "1900-01",
+    "end": "1969-12"
+  },
+  "observedDonorAndContinuation": {
+    "start": "1970-01",
+    "end": "2026-06",
+    "path": "../../msci_world.csv"
+  },
+  "inflationData": {
+    "path": "../../inflation.csv",
+    "baseline": "1899-12",
+    "syntheticPeriod": {
+      "start": "1900-01",
+      "end": "1954-12"
+    },
+    "observedPeriod": {
+      "start": "1955-01",
+      "end": "2026-06"
+    },
+    "generator": "./extend-inflation.mjs",
+    "audit": "./inflation-annual-backcast.csv"
+  },
+  "generator": "./generate.mjs",
+  "seed": "jst-kz-msci-world-eur-v1",
+  "simulationSampling": {
+    "activeMode": "overlapping-historical-paths",
+    "startFrequency": "annual",
+    "sequence": "contiguous-no-wrap",
+    "pathCount": "dynamic-by-projection-horizon"
+  },
+  "license": "CC-BY-NC-SA-4.0 for the JST/KZ-derived data; see README.md",
+  "inputChecksumsSha256": {
+    "JSTdatasetR6.xlsx": "c1bb91fe56ea50d4f27af5c0fc897d481e89ae38ce41eaecab62134c9354981d",
+    "BBdatasetR1.xlsx": "e00c6fb0166bbd5d7b5bd8f2991a5d5ec0fe0137fb3f8ec88bb50148bd3e4694",
+    "msci_world.csv": "05c98514d5b642c03f42b21229fc1877b4503295c3d23525fcbb321b31dbd66c",
+    "observedInflationSuffix1955To2026": "d134c1549712e912b1a740af52a6cde711dab9a81dca857fc7851e768e658e1d"
+  },
+  "outputChecksumsSha256": {
+    "inflation.csv": "af93e3e491c0a16159a6c0bde2d034f5b3fdc2526fbdb894eb6713198ad0a455",
+    "inflation-annual-backcast.csv": "137ee07affd66bca1fa81041fb9ea0eb821a601d71384acc86051db6c15a2fb6"
+  }
+}

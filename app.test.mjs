@@ -6,10 +6,12 @@ import {
   annualSupportForYear,
   baseSubsidy,
   buildDataStatusText,
+  buildHistoricalPaths,
   buildWithdrawalTooltipText,
   calculateBootstrapSamplingRealCagr,
   calculateHistoricalRealCagr,
   chartLoadingPatternText,
+  formatSuccessPercent,
   makeBootstrapPath,
   migrateSession,
   parseChildBirthYearInput,
@@ -24,7 +26,11 @@ import { computeSimulationResult } from "./simulation-worker.js";
 function buildStatusDataset() {
   return {
     market: {
-      bootstrapSeries: [{ key: "1979-01" }, { key: "2025-12" }],
+      bootstrapSeries: Array.from({ length: 1518 }, (_, index) => {
+        const year = 1900 + Math.floor(index / 12);
+        const month = (index % 12) + 1;
+        return { key: `${year}-${String(month).padStart(2, "0")}` };
+      }),
     },
   };
 }
@@ -35,6 +41,18 @@ function buildBootstrapSeries(length = 180) {
     key: `2000-${String((index % 12) + 1).padStart(2, "0")}`,
     marketReturn: 0.004 + (index % 5) * 0.001,
   }));
+}
+
+function buildMonthlySeries(startYear, yearCount) {
+  return Array.from({ length: yearCount * 12 }, (_, index) => {
+    const year = startYear + Math.floor(index / 12);
+    const month = (index % 12) + 1;
+    return {
+      inflationRatio: 1 + (index % 4) * 0.0001,
+      key: `${year}-${String(month).padStart(2, "0")}`,
+      marketReturn: 0.002 + (index % 7) * 0.0005,
+    };
+  });
 }
 
 function buildHousehold() {
@@ -106,38 +124,28 @@ test("parseChildBirthYearInput rejects invalid years", () => {
   );
 });
 
-test("buildDataStatusText keeps the selected mode on loading", () => {
+test("buildDataStatusText shows the full history in completed years", () => {
   const status = buildDataStatusText(buildStatusDataset(), true, false, { isLoading: true });
 
-  assert.match(status, /Inflationsbereinigt(\.|\b)/);
-  assert.match(status, /Zuflüsse ohne Inflationsfortschreibung(\.|\b)/);
-  assert.doesNotMatch(status, /Berechnung laeuft/);
-});
-
-test("buildDataStatusText renders nominal mode", () => {
-  const status = buildDataStatusText(buildStatusDataset(), false, false);
-
-  assert.match(status, /Nominal(\.|\b)/);
-  assert.match(status, /Zuflüsse ohne Inflationsfortschreibung(\.|\b)/);
-  assert.doesNotMatch(status, /Berechnung laeuft/);
-});
-
-test("buildDataStatusText renders inflow-adjusted mode", () => {
-  const status = buildDataStatusText(buildStatusDataset(), true, true);
-
-  assert.match(status, /Inflationsbereinigt(\.|\b)/);
-  assert.match(status, /Zuflüsse mit Inflation fortgeschrieben(\.|\b)/);
+  assert.equal(status, "Inflation und Aktienmärkte 1900-2026.");
+  assert.doesNotMatch(status, /1518 Monate/);
+  assert.doesNotMatch(status, /Inflationsbereinigt|Zuflüsse|Renditeannahme/);
 });
 
 test("buildDataStatusText renders English copy after locale switch", () => {
   setLanguage("en");
   const status = buildDataStatusText(buildStatusDataset(), true, true);
 
-  assert.match(status, /months of ETF and inflation data/);
-  assert.match(status, /Inflation-adjusted(\.|\b)/);
-  assert.match(status, /Inflows indexed with inflation(\.|\b)/);
+  assert.match(status, /126 years of equity and inflation data/);
+  assert.doesNotMatch(status, /Inflation-adjusted|Inflows indexed|return assumption/);
 
   setLanguage("de");
+});
+
+test("success percentages are rounded to whole numbers", () => {
+  assert.equal(formatSuccessPercent(2 / 3), "67 %");
+  assert.equal(formatSuccessPercent(0.724), "72 %");
+  assert.equal(formatSuccessPercent(1), "100 %");
 });
 
 test("parseChildBirthYearInput uses localized English validation messages", () => {
@@ -645,6 +653,71 @@ test("circular bootstrap wraps at the boundary and includes every month equally"
   }
 });
 
+test("historical paths use every eligible annual start without reordering or wraparound", () => {
+  const source = buildMonthlySeries(1900, 11);
+  const paths = buildHistoricalPaths(source, 5 * 12, { startMonth: 7 });
+
+  assert.equal(paths.length, 6);
+  assert.deepEqual(
+    paths.map((path) => path.startKey),
+    ["1900-07", "1901-07", "1902-07", "1903-07", "1904-07", "1905-07"],
+  );
+  assert.deepEqual(
+    paths.map((path) => path.endKey),
+    ["1905-06", "1906-06", "1907-06", "1908-06", "1909-06", "1910-06"],
+  );
+  for (const path of paths) {
+    assert.equal(path.observations.length, 60);
+    const sourceStart = source.findIndex(
+      (observation) => observation.key === path.startKey,
+    );
+    assert.deepEqual(
+      path.observations,
+      source.slice(sourceStart, sourceStart + 60),
+    );
+  }
+});
+
+test("historical simulation uses its actual path count and ignores random seeds", () => {
+  const household = {
+    annualFeeRate: 0,
+    applicant: {
+      birthdate: new Date(1986, 6, 1),
+      incomeRate: 0,
+      initialBalance: 1_000,
+      monthlyContribution: 100,
+      retirementAge: 67,
+    },
+    children: [],
+    spouse: null,
+  };
+  const source = buildMonthlySeries(1900, 11);
+  const options = {
+    samplingMode: "historical-paths",
+    now: new Date(2026, 6, 1),
+    maxAge: 45,
+    simulationCount: 999,
+    simulationSeedOffset: 0,
+  };
+  const first = simulateHousehold(household, source, options);
+  const second = simulateHousehold(household, source, {
+    ...options,
+    simulationSeedOffset: 999,
+  });
+
+  assert.equal(first.pathCount, 6);
+  assert.equal(first.samplingMode, "historical-paths");
+  assert.deepEqual(first.historicalPathStartKeys, [
+    "1900-07",
+    "1901-07",
+    "1902-07",
+    "1903-07",
+    "1904-07",
+    "1905-07",
+  ]);
+  assert.deepEqual(first, second);
+});
+
 test("sampler-weighted real-return center matches historical and custom targets", () => {
   const source = buildBootstrapSeries(191);
   const historical = calculateHistoricalRealCagr(source);
@@ -821,15 +894,15 @@ test("session v5 round-trips withdrawal rate and older sessions migrate to 4 per
   }
 });
 
-test("return assumption appears in both localized status messages", () => {
+test("return assumption is omitted from localized status messages", () => {
   const dataset = {
     market: {
       bootstrapSeries: buildBootstrapSeries(),
     },
   };
-  assert.match(buildDataStatusText(dataset, true, false, 0.03), /Reale Renditeannahme: \+3,0 % p\.a\./);
+  assert.doesNotMatch(buildDataStatusText(dataset, true, false, 0.03), /Renditeannahme/);
   setLanguage("en");
-  assert.match(buildDataStatusText(dataset, true, false, 0.1), /Real return assumption: \+10\.0 % p\.a\./);
+  assert.doesNotMatch(buildDataStatusText(dataset, true, false, 0.1), /return assumption/);
   setLanguage("de");
 });
 
@@ -840,6 +913,8 @@ test("return control exposes constraints, presets, localization, and mobile styl
   ]);
 
   assert.match(html, /id="expected-real-return"/);
+  assert.match(html, />Projektion \| Historische Daten<\/h2>/);
+  assert.doesNotMatch(html, /id="data-status"/);
   assert.match(html, /min="-100"/);
   assert.match(html, /max="100"/);
   assert.match(html, /step="0\.1"/);
@@ -904,19 +979,22 @@ test("withdrawal diagnostics and model qualifications are exposed accessibly", a
   assert.match(source, /withdrawalRateStatus/);
   assert.match(source, /withdrawalRateCandidates: WITHDRAWAL_RATE_OPTIONS/);
   assert.match(source, /withdrawalRate: Number\(elements\.withdrawalRate\.value\)/);
-  assert.match(source, /formatWithdrawalRate\(rate\)} \(\${formatReturnPercent\(stats\.successRate\)}\)/);
+  assert.match(source, /formatWithdrawalRate\(rate\)} \(\${formatSuccessPercent\(stats\.successRate\)}\)/);
   assert.match(source, /displayed value is the median modeled extra income/);
   assert.match(source, /first household income shortfall/);
   assert.match(assumptions, /gesamte modellierte Steuererstattung[\s\S]*wieder/);
   assert.match(assumptions, /zentrale Projektion ist der Median/);
-  assert.match(assumptions, /Werte vor 1986 sind rückgerechnete Backtest-Daten/);
+  assert.match(assumptions, /1900 bis 1969[\s\S]*synthetisch/);
 });
 
-test("bundled market and inflation data cover the full January 1970 to June 2026 window", async () => {
-  const [marketCsv, inflationCsv] = await Promise.all([
-    readFile(new URL("./msci_world.csv", import.meta.url), "utf8"),
+test("active market and inflation data cover the full January 1900 to June 2026 window", async () => {
+  const [marketCsv, inflationCsv, source] = await Promise.all([
+    readFile(new URL("./jst_kz_global_equity_monthly.csv", import.meta.url), "utf8"),
     readFile(new URL("./inflation.csv", import.meta.url), "utf8"),
+    readFile(new URL("./app.js", import.meta.url), "utf8"),
   ]);
+  assert.match(source, /const MARKET_DATA_PATH = "\.\/jst_kz_global_equity_monthly\.csv"/);
+  assert.match(source, /samplingMode: SAMPLING_MODE_HISTORICAL_PATHS/);
   const marketMonths = marketCsv
     .trim()
     .split(/\r?\n/)
@@ -948,7 +1026,14 @@ test("bundled market and inflation data cover the full January 1970 to June 2026
 
   const inflationKeys = new Set(inflationMonths.slice(1).map((row) => row.key));
   const overlap = marketMonths.slice(1).filter((row) => inflationKeys.has(row.key));
-  assert.equal(overlap[0].key, "1970-01");
+  assert.equal(overlap[0].key, "1900-01");
   assert.equal(overlap.at(-1).key, "2026-06");
-  assert.equal(overlap.length, 678);
+  assert.equal(overlap.length, 1518);
+
+  const defaultHistoricalPaths = buildHistoricalPaths(overlap, 54 * 12, {
+    startMonth: 7,
+  });
+  assert.equal(defaultHistoricalPaths.length, 73);
+  assert.equal(defaultHistoricalPaths[0].startKey, "1900-07");
+  assert.equal(defaultHistoricalPaths.at(-1).endKey, "2026-06");
 });

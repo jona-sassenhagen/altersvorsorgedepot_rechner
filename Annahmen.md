@@ -37,16 +37,17 @@ Der Rechner modelliert einen Haushalt mit:
 - einer antragstellenden Person
 - optional einer Partnerin oder einem Partner
 - null oder mehr Kindern
-- genau einer Kapitalanlage: MSCI World in EUR
+- genau einer Kapitalanlage: eine rekonstruierte globale Developed-Markets-Aktienreihe in historischer deutscher Anlegerwährung bzw. EUR
 
 Die App projiziert die Ansparphase und anschließend ein vereinfachtes Brutto-Entnahmeszenario mit einem wählbaren anfänglichen jährlichen Entnahmesatz von 3 bis 5 Prozent (Standard: 4 Prozent). Tatsächliche Entnahmen sind auf das im jeweiligen persönlichen Depot verfügbare Vermögen begrenzt. Auszahlungsprodukte, Steuern in der Auszahlungsphase und alternative Entnahmestrategien werden nicht modelliert.
 
 ## Simulationsannahmen
 
-- Historische Datenquelle: die lokal im Repository gespeicherte Curvo-CSV.
+- Historische Datenquelle: die lokale JST/Kuvshinov–Zimmermann-Rekonstruktion in `jst_kz_global_equity_monthly.csv`.
+- Von 1900 bis 1969 werden marktkapitalisierungsgewichtete jährliche Aktienrenditen synthetisch auf Monatsverläufe verteilt; ab 1970 wird die lokale MSCI-World-EUR-Reihe von Curvo unverändert fortgeführt.
 - Renditefrequenz: monatlich.
-- Bootstrap-Methode: zirkulärer 15-Jahres-Block-Bootstrap auf Monatsrenditen. Jeder historische Monat hat dadurch dieselbe Einschlusswahrscheinlichkeit; ein Block kann am Ende der Datenreihe zum Anfang zurückspringen.
-- Anzahl Simulationen: 2.500.
+- Szenariomethode: überlappende historische Pfade ohne Bootstrap. Jeder Pfad beginnt im gleichen Kalendermonat eines anderen historischen Jahres und folgt danach der vollständigen tatsächlichen Monatsreihenfolge von Markt und Inflation ohne Neuanordnung, Wiederholung oder zirkulären Übergang.
+- Anzahl Pfade: alle vollständigen historischen Startjahre, für die genügend Folgemonate bis zum persönlichen Modellende im Alter 90 vorhanden sind. Die Anzahl hängt deshalb vom Alter der antragstellenden Person und vom Projektionshorizont ab.
 - Projektionshorizont: ab heute bis zum 90. Lebensjahr der antragstellenden Person.
 - Beiträge enden mit dem Renteneintrittsalter.
 - Standard-Renteneintrittsalter: 67.
@@ -124,20 +125,21 @@ Diese Klassen sind Modellannahmen, keine gesetzlichen Tarifzonen:
 ## Inflationsbehandlung
 
 - Die App verwendet eine lokale monatliche deutsche CPI-Zeitreihe aus `inflation.csv`.
-- Der MSCI World wurde erst 1986 aufgelegt. Die in der Curvo-Reihe enthaltenen Werte vor 1986 sind rückgerechnete Backtest-Daten und keine damals tatsächlich veröffentlichten Indexstände.
-- Die Reihe stammt bis März 2025 von FRED/OECD (`DEUCPIALLMINMEI`) und wird ab April 2025 mit dem deutschen Verbraucherpreisindex von Destatis fortgeführt.
+- Für 1900 bis 1954 werden die jährlichen deutschen CPI-Veränderungen aus der JST Macrohistory Database gleichmäßig in logarithmischen Monatsraten verteilt. Diese Monatsverläufe sind synthetisch; insbesondere bilden sie den tatsächlichen Monatsverlauf der Hyperinflation 1923 nicht ab.
+- Die beobachtete monatliche Reihe stammt von Januar 1955 bis März 2025 von FRED/OECD (`DEUCPIALLMINMEI`) und wird ab April 2025 mit dem deutschen Verbraucherpreisindex von Destatis fortgeführt.
+- Die Aktienreihe von 1900 bis 1969 ist eine JST/Kuvshinov–Zimmermann-Approximation und keine Reproduktion des proprietären DMS-Index. Monatsrenditen vor 1970 sind synthetisch; ab 1970 wird die MSCI-World-EUR-Reihe von Curvo verwendet. Der MSCI World wurde erst 1986 aufgelegt, sodass auch Curvo-Werte von 1970 bis 1985 rückgerechnete Backtest-Daten sind.
 - Wenn die Inflationsoption aktiviert ist, werden Ergebnisse in Preisen des letzten verfügbaren CPI-Monats ausgewiesen.
-- Für spätere Projektionsmonate werden die historischen monatlichen Inflationsverhältnisse gemeinsam mit den zugehörigen Marktrenditen im Block-Bootstrap gezogen.
+- Für jeden historischen Pfad werden die monatlichen Inflationsverhältnisse gemeinsam mit den Renditen desselben historischen Monats in unveränderter Reihenfolge verwendet.
 - Historische Kapitalmarktdaten und CPI-Daten werden monatlich zusammengeführt, damit nominale und reale Ergebnisse aus demselben Simulationspfad entstehen.
 
 ## Explizite Ausschlüsse
 
 Folgende Punkte sind in v1 bewusst nicht enthalten:
 
-- Live-Datenabruf von Curvo oder anderen Diensten
+- Live-Datenabruf von JST, Kuvshinov/Zimmermann, Curvo oder anderen Diensten
 - das separate kindeigene `Frühstart-Rente`-Depot
 - Anbietergebühren, Handelskosten, Steuern in der Auszahlungsphase oder alternative Entnahmestrategien
-- andere Fonds als MSCI World
+- andere Fonds oder Aktienreihen als die aktive JST/KZ-MSCI-Weltaktienreihe
 - alte Riester-Bestandsregeln außer den wenigen hier explizit genannten Entwurfsübernahmen
 - rechtliche Detailprüfungen der Förderberechtigung
 - Optimierung, welchem Ehepartner die Kinderförderung formal zugeordnet werden sollte

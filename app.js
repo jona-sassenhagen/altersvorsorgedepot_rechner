@@ -1,4 +1,4 @@
-const MARKET_DATA_PATH = "./msci_world.csv";
+const MARKET_DATA_PATH = "./jst_kz_global_equity_monthly.csv";
 const CPI_DATA_PATH = "./inflation.csv";
 const BOOTSTRAP_BLOCK_MONTHS = 15 * 12;
 const SIMULATION_COUNT = 2500;
@@ -33,6 +33,8 @@ const MIN_CHILD_BENEFIT_YEARS = 16;
 const MAX_CHILD_BENEFIT_YEARS = 25;
 const RETURN_MODE_HISTORICAL = "historical";
 const RETURN_MODE_CUSTOM = "custom";
+const SAMPLING_MODE_HISTORICAL_PATHS = "historical-paths";
+const SAMPLING_MODE_BLOCK_BOOTSTRAP = "block-bootstrap";
 const MIN_EXPECTED_REAL_RETURN = -1;
 const MAX_EXPECTED_REAL_RETURN = 1;
 
@@ -50,7 +52,7 @@ const TRANSLATIONS = {
     meta: {
       title: "Altersvorsorgedepot-Rechner",
       description:
-        "Statischer Haushaltsrechner für das Altersvorsorgedepot mit lokal gespeicherten MSCI-World-EUR-Daten und 15-Jahres-Bootstraps.",
+        "Statischer Haushaltsrechner für das Altersvorsorgedepot mit vollständigen historischen Weltaktienpfaden ab 1900.",
     },
     hero: { title: "Altersvorsorgedepot-Rechner" },
     themeToggle: { label: "Farbschema umschalten" },
@@ -80,9 +82,10 @@ const TRANSLATIONS = {
         `Kinder werden bis zum ${years}. Lebensjahr für die modellierte Kinderförderung berücksichtigt.`,
     },
     results: {
-      title: "Projektion",
-      simulationCount: "2.500 Pfade",
-      blocks: "15-Jahres-Blöcke",
+      title: "Projektion | Historische Daten",
+      simulationCount: ({ count } = {}) =>
+        Number.isFinite(count) ? `${formatNumber(count, { maximumFractionDigits: 0 })} historische Pfade` : "Historische Pfade",
+      marketSeries: "Weltaktien 1900–2026",
       retirementValue: "Ø Depotwert bei Rentenbeginn",
       withdrawalIncome: "Ø Zusatzrente (Brutto)",
       withdrawalRateCaption: "Entnahme% (Erfolg%)",
@@ -113,12 +116,12 @@ const TRANSLATIONS = {
     notes: {
       assumptionsTitle: "Annahmen",
       assumptionsBody1:
-        "Diese Vorschau zeigt, wie sich ein Altersvorsorgedepot bei gleichbleibenden monatlichen Einzahlungen entwickeln könnte. Dafür werden historische Marktphasen des MSCI World in zirkulären 15-Jahres-Blöcken kombiniert und 2.500 mögliche Verläufe berechnet. Die zentrale Projektion ist der Median: 50 % der Ergebnisse liegen darunter und 50 % darüber. Die reale Renditeannahme verschiebt das langfristige Renditeniveau, während Schwankungen, Krisen, Inflation und zeitliche Zusammenhänge erhalten bleiben.",
+        "Diese Vorschau zeigt, wie sich ein Altersvorsorgedepot bei gleichbleibenden monatlichen Einzahlungen entwickelt hätte. Jeder Pfad beginnt in einem anderen historischen Kalenderjahr und folgt anschließend der tatsächlich vorliegenden monatlichen Markt- und Inflationsfolge ohne Neuanordnung oder Wiederholung. Verwendet werden alle vollständigen, überlappenden Zeitfenster, die den persönlichen Modellhorizont bis Alter 90 abdecken. Die zentrale Projektion ist der Median: 50 % der historischen Ergebnisse liegen darunter und 50 % darüber. Eine benutzerdefinierte reale Renditeannahme verschiebt lediglich das langfristige Renditeniveau.",
       assumptionsBody2:
         'Direkte Förderung, Kinderförderung und der vereinfachte Steuervorteil folgen den <a href="./Annahmen.md">Annahmen in diesem Projekt</a>. Die modellierte Steuererstattung wird vollständig wieder in das Depot investiert. Nach dem Renteneintritt enden neue Einzahlungen; die Brutto-Entnahme mit dem gewählten Entnahmesatz ist auf das tatsächlich verfügbare Depotvermögen begrenzt. Auf Wunsch werden jährliche Produktkosten eingerechnet. Weitere offizielle Informationen gibt es beim <a href="https://www.bundesfinanzministerium.de/Content/DE/FAQ/reform-der-privaten-altersvorsorge.html">Bundesfinanzministerium</a>.',
       dataTitle: "Datenbasis",
       dataBody:
-        'Die Wertentwicklung basiert auf MSCI-World-Daten von <a href="https://curvo.eu/backtest/en/market-index/msci-world?currency=eur">Curvo</a>. Der Index wurde 1986 aufgelegt; frühere Werte sind rückgerechnete Backtest-Daten. Die deutsche CPI-Zeitreihe stammt bis März 2025 von <a href="https://fred.stlouisfed.org/series/DEUCPIALLMINMEI">FRED/OECD</a> und wird ab April 2025 mit Daten des <a href="https://www.destatis.de/DE/Themen/Wirtschaft/Preise/Verbraucherpreisindex/_inhalt.html">Statistischen Bundesamts</a> fortgeführt.',
+        'Für 1900–1969 werden jährliche Aktienrenditen aus der <a href="https://www.macrohistory.net/database/">JST Macrohistory Database</a> mit historischen Marktkapitalisierungen von <a href="https://dkuvshinov.com/">Kuvshinov/Zimmermann</a> gewichtet. Synthetische Monatsverläufe werden auf diese Jahresrenditen skaliert; ab 1970 wird die lokale <a href="https://curvo.eu/backtest/en/market-index/msci-world?currency=eur">MSCI-World-EUR-Reihe von Curvo</a> unverändert fortgeführt. Deutsche Inflation wird 1900–1954 aus JST-Jahreswerten monatlich interpoliert, stammt 1955 bis März 2025 von <a href="https://fred.stlouisfed.org/series/DEUCPIALLMINMEI">FRED/OECD</a> und ab April 2025 vom <a href="https://www.destatis.de/DE/Themen/Wirtschaft/Preise/Verbraucherpreisindex/_inhalt.html">Statistischen Bundesamt</a>. <a href="./data-sources/jst-kz-global-equity/README.md">Methodik und Einschränkungen</a>.',
       interpretationTitle: "Interpretation",
       interpretationBody:
         "Die Projektion ist kein garantiertes Ergebnis und keine Steuerberatung. Sie soll helfen, Größenordnungen zu vergleichen: Depotwert, eigene Einzahlungen, mögliche Förderung und wie stark Ergebnisse je nach historischer Marktphase schwanken.",
@@ -180,8 +183,6 @@ const TRANSLATIONS = {
       presets: {
         min10:
           "10 Euro pro Monat sind der gesetzliche Mindestbeitrag für ein Altersvorsorgedepot im vorgeschlagenen Reformmodell.",
-        level100:
-          "30 Euro pro Monat sind 360 Euro pro Jahr. Damit wird die erste Förderstufe ausgeschöpft: 50 Prozent Grundförderung auf die ersten 360 Euro Eigenbeitrag.",
         max150:
           "150 Euro pro Monat sind 1.800 Euro pro Jahr. Damit wird der maximal geförderte Jahresbeitrag erreicht: 360 Euro mit 50 Prozent plus weitere 1.440 Euro mit 25 Prozent.",
         high570:
@@ -201,7 +202,7 @@ const TRANSLATIONS = {
     status: {
       loadingData: "Lokale Markt- und Inflationsdaten werden geladen…",
       loadError: "Lokale Daten konnten nicht geladen werden.",
-      dataLoaded: ({ months, start, end }) => `${months} Monate mit ETF- und Inflationsdaten (${start} bis ${end}).`,
+      dataLoaded: () => "Inflation und Aktienmärkte 1900-2026.",
       adjusted: "Inflationsbereinigt.",
       nominal: "Nominal.",
       inflowsAdjusted: "Zuflüsse mit Inflation fortgeschrieben.",
@@ -211,8 +212,8 @@ const TRANSLATIONS = {
     errors: {
       cancelledSimulation: "Berechnung abgebrochen.",
       fetchFailed: ({ path }) => `${path} konnte nicht geladen werden.`,
-      insufficientHistory: "Zu wenig Historie fuer 15-Jahres-Bootstraps.",
-      insufficientOverlap: "Zu wenig ueberlappende Markt- und Inflationshistorie fuer 15-Jahres-Bootstraps.",
+      insufficientHistory: "Zu wenig historische Marktdaten.",
+      insufficientOverlap: "Zu wenig überlappende Markt- und Inflationshistorie.",
       emptyCpi: "Die CPI-Datei enthaelt keine Werte.",
       applicantBirthdate: "Bitte das Geburtsdatum der antragstellenden Person eingeben.",
       spouseBirthdate: "Bitte das Geburtsdatum der Partnerperson eingeben.",
@@ -225,7 +226,6 @@ const TRANSLATIONS = {
     },
     presets: {
       min10: "Min 10",
-      level100: "Stufe 30",
       max150: "Max Förderung 150",
       high570: "Hoch 570",
     },
@@ -253,7 +253,7 @@ const TRANSLATIONS = {
     meta: {
       title: "Retirement Savings Portfolio Calculator",
       description:
-        "Static household calculator for the retirement savings portfolio using local MSCI World EUR data and 15-year bootstrap paths.",
+        "Static household calculator for the retirement savings portfolio using complete historical global-equity paths from 1900.",
     },
     hero: { title: "Retirement Savings Portfolio Calculator" },
     themeToggle: { label: "Toggle color theme" },
@@ -283,9 +283,10 @@ const TRANSLATIONS = {
         `Children are included in the modeled child subsidy until age ${years}.`,
     },
     results: {
-      title: "Projection",
-      simulationCount: "2,500 paths",
-      blocks: "15-year blocks",
+      title: "Projection | Historical data",
+      simulationCount: ({ count } = {}) =>
+        Number.isFinite(count) ? `${formatNumber(count, { maximumFractionDigits: 0 })} historical paths` : "Historical paths",
+      marketSeries: "Global equities 1900–2026",
       retirementValue: "Avg. portfolio value at retirement",
       withdrawalIncome: "Avg. extra income (gross)",
       withdrawalRateCaption: "Withdrawal% (success%)",
@@ -316,12 +317,12 @@ const TRANSLATIONS = {
     notes: {
       assumptionsTitle: "Assumptions",
       assumptionsBody1:
-        "This preview shows how a retirement savings portfolio could develop with constant monthly contributions. It combines historical MSCI World market phases in circular 15-year blocks and computes 2,500 possible paths. The central projection is the median: 50% of outcomes are below it and 50% are above it. The real-return assumption shifts the long-run return level while preserving volatility, crashes, inflation, and serial correlation.",
+        "This preview shows how a retirement savings portfolio would have developed with constant monthly contributions. Each path begins in a different historical calendar year and then follows the available monthly market and inflation sequence without reordering or repetition. It uses every complete overlapping window long enough to cover the personal model horizon through age 90. The central projection is the median: 50% of historical outcomes are below it and 50% are above it. A custom real-return assumption only shifts the long-run return level.",
       assumptionsBody2:
         'Direct subsidies, child subsidies, and the simplified tax benefit follow the <a href="./Annahmen.md">assumptions used in this project</a>. The modeled tax refund is reinvested in full. After retirement, new contributions stop; gross withdrawals at the selected rate are capped at the assets actually available. Annual product fees can optionally be included. More official information is available from the <a href="https://www.bundesfinanzministerium.de/Content/DE/FAQ/reform-der-privaten-altersvorsorge.html">Federal Ministry of Finance</a>.',
       dataTitle: "Data basis",
       dataBody:
-        'Performance is based on MSCI World data from <a href="https://curvo.eu/backtest/en/market-index/msci-world?currency=eur">Curvo</a>. The index launched in 1986; earlier values are back-tested. The German CPI series comes from <a href="https://fred.stlouisfed.org/series/DEUCPIALLMINMEI">FRED/OECD</a> through March 2025 and is continued from April 2025 with data from the <a href="https://www.destatis.de/EN/Themes/Economy/Prices/Consumer-Price-Index/_node.html">German Federal Statistical Office</a>.',
+        'For 1900–1969, annual equity returns from the <a href="https://www.macrohistory.net/database/">JST Macrohistory Database</a> are weighted using historical market capitalizations from <a href="https://dkuvshinov.com/">Kuvshinov/Zimmermann</a>. Synthetic monthly paths are scaled to those annual returns; from 1970 onward, the local <a href="https://curvo.eu/backtest/en/market-index/msci-world?currency=eur">Curvo MSCI World EUR series</a> is continued unchanged. German inflation for 1900–1954 is monthly-interpolated from JST annual observations, comes from <a href="https://fred.stlouisfed.org/series/DEUCPIALLMINMEI">FRED/OECD</a> from 1955 through March 2025, and from the <a href="https://www.destatis.de/EN/Themes/Economy/Prices/Consumer-Price-Index/_node.html">German Federal Statistical Office</a> thereafter. See the <a href="./data-sources/jst-kz-global-equity/README.md">methodology and limitations</a>.',
       interpretationTitle: "Interpretation",
       interpretationBody:
         "This projection is not a guaranteed outcome and not tax advice. It is meant to help compare orders of magnitude: portfolio value, own contributions, possible subsidies, and how strongly results can vary across historical market phases.",
@@ -383,8 +384,6 @@ const TRANSLATIONS = {
       presets: {
         min10:
           "10 euros per month is the statutory minimum contribution for a retirement savings portfolio in the proposed reform model.",
-        level100:
-          "30 euros per month equal 360 euros per year. That fully uses the first subsidy tier: a 50 percent base subsidy on the first 360 euros of own contributions.",
         max150:
           "150 euros per month equal 1,800 euros per year. That reaches the maximum subsidized annual contribution: 360 euros at 50 percent plus another 1,440 euros at 25 percent.",
         high570:
@@ -404,7 +403,7 @@ const TRANSLATIONS = {
     status: {
       loadingData: "Loading local market and inflation data…",
       loadError: "Local data could not be loaded.",
-      dataLoaded: ({ months, start, end }) => `${months} months of ETF and inflation data (${start} to ${end}).`,
+      dataLoaded: ({ years, start, end }) => `${years} years of equity and inflation data (${start} to ${end}).`,
       adjusted: "Inflation-adjusted.",
       nominal: "Nominal.",
       inflowsAdjusted: "Inflows indexed with inflation.",
@@ -414,8 +413,8 @@ const TRANSLATIONS = {
     errors: {
       cancelledSimulation: "Calculation cancelled.",
       fetchFailed: ({ path }) => `Could not load ${path}.`,
-      insufficientHistory: "Not enough history for 15-year bootstraps.",
-      insufficientOverlap: "Not enough overlapping market and inflation history for 15-year bootstraps.",
+      insufficientHistory: "Not enough historical market data.",
+      insufficientOverlap: "Not enough overlapping market and inflation history.",
       emptyCpi: "The CPI file contains no values.",
       applicantBirthdate: "Please enter the applicant's birth year.",
       spouseBirthdate: "Please enter the spouse's birth year.",
@@ -427,7 +426,6 @@ const TRANSLATIONS = {
     },
     presets: {
       min10: "Min 10",
-      level100: "Tier 30",
       max150: "Max subsidy 150",
       high570: "High 570",
     },
@@ -456,11 +454,6 @@ const CONTRIBUTION_PRESETS = [
     value: 10,
     labelKey: "min10",
     tooltipKey: "min10",
-  },
-  {
-    value: 30,
-    labelKey: "level100",
-    tooltipKey: "level100",
   },
   {
     value: 150,
@@ -807,8 +800,7 @@ function requestSimulation(household, token) {
   const options = {
     maxAge: MAX_AGE,
     now: new Date(),
-    simulationCount: SIMULATION_COUNT,
-    simulationSeedOffset,
+    samplingMode: SAMPLING_MODE_HISTORICAL_PATHS,
     adjustInflowsForInflation: uiState.adjustInflowsForInflation,
     withdrawalRate: Number(elements.withdrawalRate.value),
     withdrawalRateCandidates: WITHDRAWAL_RATE_OPTIONS,
@@ -943,6 +935,10 @@ function formatReturnPercent(value, { sign = false } = {}) {
   return `${formatted} %`;
 }
 
+function formatSuccessPercent(value) {
+  return `${numberFormat({ maximumFractionDigits: 0 }).format(value * 100)} %`;
+}
+
 function formatWithdrawalRate(value) {
   const formatted = numberFormat({
     minimumFractionDigits: 0,
@@ -962,7 +958,7 @@ function syncWithdrawalRateControl(result = latestChartState) {
       (candidate) => Math.abs(candidate.withdrawalRate - rate) < 1e-12,
     );
     option.textContent = stats
-      ? `${formatWithdrawalRate(rate)} (${formatReturnPercent(stats.successRate)})`
+      ? `${formatWithdrawalRate(rate)} (${formatSuccessPercent(stats.successRate)})`
       : formatWithdrawalRate(rate);
   }
   if (result) {
@@ -973,7 +969,7 @@ function syncWithdrawalRateControl(result = latestChartState) {
     if (selectedStats && elements.withdrawalRateStatus) {
       elements.withdrawalRateStatus.textContent = t("aria.withdrawalRateStatus", {
         rate: formatWithdrawalRate(selectedStats.withdrawalRate),
-        successRate: formatReturnPercent(selectedStats.successRate),
+        successRate: formatSuccessPercent(selectedStats.successRate),
       });
     }
     elements.withdrawalRate.setAttribute("aria-busy", "false");
@@ -1060,7 +1056,7 @@ function buildWithdrawalTooltipText(result, adjustInflation = true) {
   const successText = t("tooltips.withdrawalDiagnostics.success", {
     age: formatNumber(stats.horizonApplicantAge),
     pathCount: formatNumber(stats.pathCount, { maximumFractionDigits: 0 }),
-    successRate: formatReturnPercent(stats.successRate),
+    successRate: formatSuccessPercent(stats.successRate),
     successfulPathCount: formatNumber(stats.successfulPathCount, {
       maximumFractionDigits: 0,
     }),
@@ -1167,10 +1163,6 @@ function wireEvents() {
   });
 
   elements.resetSessionButton.addEventListener("click", resetSession);
-  elements.rerunSimulationsButton.addEventListener("click", () => {
-    simulationSeedOffset += 1;
-    runCalculation();
-  });
 }
 
 function addChildRow(initialValue = "") {
@@ -1647,8 +1639,8 @@ function buildLoadedMessage(data) {
   const overlapEnd = parseSeriesMonthKey(data.market.bootstrapSeries.at(-1)?.key);
   return t("status.dataLoaded", {
     end: formatAxisDate(overlapEnd),
-    months: data.market.bootstrapSeries.length,
     start: formatAxisDate(overlapStart),
+    years: Math.floor(data.market.bootstrapSeries.length / 12),
   });
 }
 
@@ -1667,50 +1659,23 @@ function clearError() {
   elements.errorBanner.textContent = "";
 }
 
-function valueModeLabel(adjustInflation) {
-  return adjustInflation ? t("status.adjusted").replace(/\.$/, "") : t("status.nominal").replace(/\.$/, "");
-}
-
-function inflowModeLabel(adjustInflowsForInflation) {
-  return adjustInflowsForInflation ? t("status.inflowsAdjusted").replace(/\.$/, "") : t("status.inflowsNominal").replace(/\.$/, "");
-}
-
 function buildDataStatusText(
   data,
-  adjustInflation,
-  adjustInflowsForInflation = false,
-  expectedRealAnnualReturn,
+  _adjustInflation,
+  _adjustInflowsForInflation = false,
+  _expectedRealAnnualReturn,
 ) {
-  let resolvedAdjustInflowsForInflation = adjustInflowsForInflation;
-  if (typeof adjustInflowsForInflation === "object" && adjustInflowsForInflation !== null) {
-    resolvedAdjustInflowsForInflation = false;
-  }
-
   if (!data) {
     return t("status.loadingData");
   }
 
-  const statusParts = [
-    buildLoadedMessage(data),
-    valueModeLabel(adjustInflation),
-    inflowModeLabel(Boolean(resolvedAdjustInflowsForInflation)),
-  ];
-  const bootstrapSeries = data.market?.bootstrapSeries;
-  const resolvedReturn =
-    expectedRealAnnualReturn ??
-    (bootstrapSeries?.every(
-      (observation) =>
-        Number.isFinite(observation.marketReturn) && Number.isFinite(observation.inflationRatio),
-    )
-      ? calculateHistoricalRealCagr(bootstrapSeries)
-      : null);
-  if (Number.isFinite(resolvedReturn)) {
-    statusParts.push(t("status.realReturn", { value: formatReturnPercent(resolvedReturn, { sign: true }) }));
-  }
-  return statusParts.join(" ");
+  return buildLoadedMessage(data);
 }
 
 function setDataStatus(options = {}) {
+  if (!elements.dataStatus) {
+    return;
+  }
   elements.dataStatus.textContent = buildDataStatusText(
     datasets,
     uiState.adjustInflation,
@@ -1989,6 +1954,7 @@ function resolveWithdrawalRateCandidates(values, selectedRate) {
 function simulateHousehold(household, data, options = {}) {
   const sourceBootstrapSeries = Array.isArray(data) ? data : data.market.bootstrapSeries;
   const bootstrapSeries = recenterBootstrapSeries(sourceBootstrapSeries, options.expectedRealAnnualReturn);
+  const samplingMode = options.samplingMode ?? SAMPLING_MODE_BLOCK_BOOTSTRAP;
   const withdrawalRate = resolveWithdrawalRate(options.withdrawalRate);
   const withdrawalRateCandidates = resolveWithdrawalRateCandidates(
     options.withdrawalRateCandidates,
@@ -1996,7 +1962,7 @@ function simulateHousehold(household, data, options = {}) {
   );
   const maxAge = Number.isFinite(options.maxAge) ? options.maxAge : MAX_AGE;
   const now = options.now ? new Date(options.now) : new Date();
-  const resolvedSimulationCount = Number.isFinite(options.simulationCount) ? options.simulationCount : SIMULATION_COUNT;
+  let resolvedSimulationCount = Number.isFinite(options.simulationCount) ? options.simulationCount : SIMULATION_COUNT;
   const resolvedSeedOffset =
     options.simulationSeedOffset === undefined ? simulationSeedOffset : Number(options.simulationSeedOffset) || 0;
   const adjustInflowsForInflation = Boolean(options.adjustInflowsForInflation);
@@ -2007,6 +1973,15 @@ function simulateHousehold(household, data, options = {}) {
 
   const years = Math.ceil(maxAge - applicantAge);
   const totalMonths = years * 12;
+  const historicalPaths =
+    samplingMode === SAMPLING_MODE_HISTORICAL_PATHS
+      ? buildHistoricalPaths(bootstrapSeries, totalMonths, {
+          startMonth: now.getMonth() + 1,
+        })
+      : null;
+  if (historicalPaths) {
+    resolvedSimulationCount = historicalPaths.length;
+  }
   const chartYearStart = now.getFullYear();
   const chartYearEnd = addMonths(now, totalMonths - 1).getFullYear();
   const chartYears = chartYearEnd - chartYearStart + 1;
@@ -2044,13 +2019,16 @@ function simulateHousehold(household, data, options = {}) {
   );
 
   for (let iteration = 0; iteration < resolvedSimulationCount; iteration += 1) {
-    const random = mulberry32(seedForIteration(iteration, resolvedSeedOffset));
-    // The bootstrap stitches together 15-year historical blocks, preserving medium-term market
-    // regimes better than fully independent month-by-month sampling.
-    const bootstrap = makeBootstrapPath(bootstrapSeries, totalMonths, random);
+    const monthlyPath = historicalPaths
+      ? historicalPaths[iteration].observations
+      : makeBootstrapPath(
+          bootstrapSeries,
+          totalMonths,
+          mulberry32(seedForIteration(iteration, resolvedSeedOffset)),
+        );
     const path = projectPath(
       household,
-      bootstrap,
+      monthlyPath,
       now,
       years,
       adjustInflowsForInflation,
@@ -2164,6 +2142,10 @@ function simulateHousehold(household, data, options = {}) {
   );
 
   return {
+    pathCount: resolvedSimulationCount,
+    samplingMode,
+    historicalPathStartKeys: historicalPaths?.map((path) => path.startKey) ?? null,
+    historicalPathEndKeys: historicalPaths?.map((path) => path.endKey) ?? null,
     years,
     yearlyStats,
     chartStats,
@@ -2679,6 +2661,43 @@ function makeBootstrapPath(monthlyReturns, targetMonths, random) {
   return output;
 }
 
+function buildHistoricalPaths(
+  monthlyReturns,
+  targetMonths,
+  { startMonth = 1 } = {},
+) {
+  if (!Array.isArray(monthlyReturns) || monthlyReturns.length === 0) {
+    throw new RangeError("A non-empty monthly return series is required.");
+  }
+  if (!Number.isInteger(targetMonths) || targetMonths < 1) {
+    throw new RangeError("targetMonths must be a positive integer.");
+  }
+  if (!Number.isInteger(startMonth) || startMonth < 1 || startMonth > 12) {
+    throw new RangeError("startMonth must be between 1 and 12.");
+  }
+
+  const paths = [];
+  for (let start = 0; start + targetMonths <= monthlyReturns.length; start += 1) {
+    const [, month] = String(monthlyReturns[start].key).split("-");
+    if (Number.parseInt(month, 10) !== startMonth) {
+      continue;
+    }
+    const observations = monthlyReturns.slice(start, start + targetMonths);
+    paths.push({
+      startKey: observations[0].key,
+      endKey: observations.at(-1).key,
+      observations,
+    });
+  }
+
+  if (paths.length === 0) {
+    throw new RangeError(
+      "The historical series is not long enough for this projection horizon.",
+    );
+  }
+  return paths;
+}
+
 function seedForIteration(iteration, offset = 0) {
   return (0x9e3779b9 ^ (iteration + 1) * 0x85ebca6b ^ (offset + 1) * 0xc2b2ae35) >>> 0;
 }
@@ -2831,6 +2850,9 @@ function renderSummary(result, adjustInflation) {
   const summary = retirementSummaryValues(result, adjustInflation);
 
   const summaryEls = [elements.retirementValue, elements.withdrawalIncome, elements.finalRange, elements.averageSupport];
+  elements.rerunSimulationsButton.textContent = t("results.simulationCount", {
+    count: result.pathCount,
+  });
   elements.retirementValue.textContent = formatCurrency(summary.retirementValue);
   elements.withdrawalIncome.textContent = formatCurrency(summary.withdrawalIncome);
   elements.withdrawalIncome.setAttribute("aria-busy", "false");
@@ -3250,10 +3272,12 @@ export {
   annualSupportForYear,
   baseSubsidy,
   buildDataStatusText,
+  buildHistoricalPaths,
   buildWithdrawalTooltipText,
   calculateBootstrapSamplingRealCagr,
   calculateHistoricalRealCagr,
   chartLoadingPatternText,
+  formatSuccessPercent,
   makeBootstrapPath,
   migrateSession,
   parseChildBirthYearInput,

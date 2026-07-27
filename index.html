@@ -7,7 +7,7 @@
     <meta
       id="page-description"
       name="description"
-      content="Statischer Haushaltsrechner für das Altersvorsorgedepot mit lokal gespeicherten MSCI-World-EUR-Daten und 15-Jahres-Bootstraps."
+      content="Statischer Haushaltsrechner für das Altersvorsorgedepot mit vollständigen historischen Weltaktienpfaden ab 1900."
     />
     <script
       data-goatcounter="https://jona.goatcounter.com/count"
@@ -280,13 +280,11 @@
         <section class="panel results-panel">
           <div class="panel-header">
             <div>
-              <h2 data-i18n="results.title">Projektion</h2>
-              <p id="data-status" style="white-space: pre-line">Lokale Markt- und Inflationsdaten werden geladen…</p>
+              <h2 data-i18n="results.title">Projektion | Historische Daten</h2>
             </div>
             <div class="badge-row">
-              <button id="rerun-simulations" class="badge badge-button" type="button" data-i18n="results.simulationCount">2.500 Pfade</button>
-              <span class="badge" data-i18n="results.blocks">15-Jahres-Blöcke</span>
-              <span class="badge">MSCI World €</span>
+              <span id="rerun-simulations" class="badge" data-i18n="results.simulationCount">Historische Pfade</span>
+              <span class="badge" data-i18n="results.marketSeries">Weltaktien 1900–2026</span>
             </div>
           </div>
 
@@ -367,20 +365,22 @@
 
           <section class="chart-panel">
             <div class="chart-header">
-              <div>
+              <div class="chart-copy">
                 <h3 data-i18n="chart.title">Wertentwicklung des Depots</h3>
                 <p data-i18n="chart.subtitle">Depotwert und eigene Einzahlungen im Zeitverlauf. Nach dem Renteneintritt wird eine Entnahme mit dem gewählten Entnahmesatz angenommen.</p>
               </div>
               <div class="chart-tools">
                 <div class="chart-toggle-row">
-                  <button id="inflation-toggle" class="chart-toggle" type="button" aria-pressed="false">
-                    Inflationsbereinigung
-                  </button>
+                  <div class="chart-toggle-primary-row">
+                    <button id="inflation-toggle" class="chart-toggle" type="button" aria-pressed="false">
+                      Inflationsbereinigung
+                    </button>
+                    <button id="ci-toggle" class="chart-toggle active" type="button" aria-pressed="true">
+                      95%-Band
+                    </button>
+                  </div>
                   <button id="inflows-inflation-toggle" class="chart-toggle" type="button" aria-pressed="false">
                     Zuflüsse ohne Inflation
-                  </button>
-                  <button id="ci-toggle" class="chart-toggle active" type="button" aria-pressed="true">
-                    95%-Band
                   </button>
                 </div>
                 <div id="chart-legend" class="chart-legend"></div>
@@ -404,7 +404,7 @@
             <section class="note-section">
               <h3 data-i18n="notes.assumptionsTitle">Annahmen</h3>
               <p data-i18n="notes.assumptionsBody1">
-                Diese Vorschau zeigt, wie sich ein Altersvorsorgedepot bei gleichbleibenden monatlichen Einzahlungen entwickeln könnte. Dafür werden historische Marktphasen des MSCI World in zirkulären 15-Jahres-Blöcken kombiniert und 2.500 mögliche Verläufe berechnet. Die zentrale Projektion ist der Median: 50 % der Ergebnisse liegen darunter und 50 % darüber. Die reale Renditeannahme verschiebt das langfristige Renditeniveau, während Schwankungen, Krisen, Inflation und zeitliche Zusammenhänge erhalten bleiben.
+                Diese Vorschau zeigt, wie sich ein Altersvorsorgedepot bei gleichbleibenden monatlichen Einzahlungen entwickelt hätte. Jeder Pfad beginnt in einem anderen historischen Kalenderjahr und folgt anschließend der tatsächlich vorliegenden monatlichen Markt- und Inflationsfolge ohne Neuanordnung oder Wiederholung. Verwendet werden alle vollständigen, überlappenden Zeitfenster, die den persönlichen Modellhorizont bis Alter 90 abdecken. Die zentrale Projektion ist der Median: 50 % der historischen Ergebnisse liegen darunter und 50 % darüber. Eine benutzerdefinierte reale Renditeannahme verschiebt lediglich das langfristige Renditeniveau.
               </p>
               <p data-i18n-html="notes.assumptionsBody2">
                 Direkte Förderung, Kinderförderung und der vereinfachte Steuervorteil folgen den
@@ -416,14 +416,18 @@
             <section class="note-section">
               <h3 data-i18n="notes.dataTitle">Datenbasis</h3>
               <p data-i18n-html="notes.dataBody">
-                Die Wertentwicklung basiert auf MSCI-World-Daten von
-                <a href="https://curvo.eu/backtest/en/market-index/msci-world?currency=eur">Curvo</a>.
-                Der Index wurde 1986 aufgelegt; frühere Werte sind rückgerechnete Backtest-Daten.
-                Die deutsche CPI-Zeitreihe stammt bis März 2025 von
+                Für 1900–1969 werden jährliche Aktienrenditen aus der
+                <a href="https://www.macrohistory.net/database/">JST Macrohistory Database</a>
+                mit historischen Marktkapitalisierungen von
+                <a href="https://dkuvshinov.com/">Kuvshinov/Zimmermann</a> gewichtet.
+                Synthetische Monatsverläufe werden auf diese Jahresrenditen skaliert; ab 1970 wird die
+                <a href="https://curvo.eu/backtest/en/market-index/msci-world?currency=eur">MSCI-World-EUR-Reihe von Curvo</a>
+                unverändert fortgeführt. Deutsche Inflation wird 1900–1954 aus JST-Jahreswerten monatlich interpoliert,
+                stammt 1955 bis März 2025 von
                 <a href="https://fred.stlouisfed.org/series/DEUCPIALLMINMEI">FRED/OECD</a>
-                und wird ab April 2025 mit Daten des
+                und ab April 2025 vom
                 <a href="https://www.destatis.de/DE/Themen/Wirtschaft/Preise/Verbraucherpreisindex/_inhalt.html">Statistischen Bundesamts</a>
-                fortgeführt.
+                fortgeführt. <a href="./data-sources/jst-kz-global-equity/README.md">Methodik und Einschränkungen</a>.
               </p>
             </section>
             <section class="note-section">
