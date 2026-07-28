@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  CURRENCY_CONVERSION_METHOD,
   DEFAULT_SEED,
   buildCompleteDonorYears,
   excelSerialToYear,
@@ -144,6 +145,7 @@ test("annual reconstruction uses prior-year USD market caps and currency returns
     {
       year: 1999,
       iso: "DEU",
+      cpi: 100,
       xrusd: 2,
       equityReturn: null,
       interpolatedEquityReturn: null,
@@ -151,6 +153,7 @@ test("annual reconstruction uses prior-year USD market caps and currency returns
     {
       year: 2000,
       iso: "DEU",
+      cpi: 110,
       xrusd: 4,
       equityReturn: 0.1,
       interpolatedEquityReturn: null,
@@ -158,6 +161,7 @@ test("annual reconstruction uses prior-year USD market caps and currency returns
     {
       year: 1999,
       iso: "USA",
+      cpi: 100,
       xrusd: 1,
       equityReturn: null,
       interpolatedEquityReturn: null,
@@ -165,6 +169,7 @@ test("annual reconstruction uses prior-year USD market caps and currency returns
     {
       year: 2000,
       iso: "USA",
+      cpi: 102,
       xrusd: 1,
       equityReturn: null,
       interpolatedEquityReturn: null,
@@ -218,11 +223,17 @@ test("annual reconstruction uses prior-year USD market caps and currency returns
   assert.equal(audit.get("USA").returnSource, "KZ_R1_EQ_TR_FALLBACK");
 
   const expectedUsdGross = (1 / 3) * (1.1 * 2 / 4) + (2 / 3) * 1.2;
+  const expectedRealUsdGross = expectedUsdGross / 1.02;
+  const expectedCurrencyNeutralGermanGross = expectedRealUsdGross * 1.1;
   assertClose(annual.usdReturn, expectedUsdGross - 1);
+  assertClose(annual.realUsdReturn, expectedRealUsdGross - 1);
   assertClose(
     annual.referenceCurrencyReturn,
-    expectedUsdGross * (4 / 2) - 1,
+    expectedCurrencyNeutralGermanGross - 1,
   );
+  assertClose(annual.rawReferenceCurrencyReturn, expectedUsdGross * 2 - 1);
+  assertClose(annual.purchasingPowerParityFxFactor, 1.1 / 1.02);
+  assert.equal(annual.currencyConversionMethod, CURRENCY_CONVERSION_METHOD);
 });
 
 test("committed synthetic years exactly match their reconstructed annual returns", () => {
@@ -241,9 +252,53 @@ test("committed synthetic years exactly match their reconstructed annual returns
     const year = Number(annual.year);
     const actual =
       levels.get(`12/${year}`) / levels.get(`12/${year - 1}`) - 1;
-    const expected = Number(annual.annual_return_german_currency);
+    const expected = Number(
+      annual.annual_return_german_currency_neutral,
+    );
     assertClose(actual, expected, Math.max(2e-12, Math.abs(expected) * 2e-14));
   }
+});
+
+test("currency-neutral annual returns remove German currency-regime jumps", () => {
+  const annualRows = parseCsv(
+    readFileSync(
+      "data-sources/jst-kz-global-equity/annual-reconstruction.csv",
+      "utf8",
+    ),
+  );
+
+  for (const row of annualRows) {
+    const nominalGermanGross =
+      1 + Number(row.annual_return_german_currency_neutral);
+    const realUsdGross = 1 + Number(row.annual_return_real_usd);
+    assertClose(
+      nominalGermanGross / Number(row.german_inflation_factor),
+      realUsdGross,
+      2e-14,
+    );
+    assertClose(
+      Number(row.ppp_fx_factor),
+      Number(row.german_inflation_factor) /
+        Number(row.us_inflation_factor),
+      2e-14,
+    );
+    assert.equal(
+      row.currency_conversion_method,
+      CURRENCY_CONVERSION_METHOD,
+    );
+  }
+
+  const postwar = new Map(
+    annualRows
+      .filter((row) => Number(row.year) >= 1945 && Number(row.year) <= 1950)
+      .map((row) => [Number(row.year), row]),
+  );
+  assert.ok(
+    Number(postwar.get(1949).annual_return_german_raw_fx_diagnostic) < -0.6,
+  );
+  assert.ok(
+    Number(postwar.get(1949).annual_return_german_currency_neutral) > -0.2,
+  );
 });
 
 test("committed CPI backcast matches JST annual factors and preserves the observed suffix", () => {
@@ -399,12 +454,33 @@ test("the source manifest marks the full series as the active default", () => {
   const source = JSON.parse(
     readFileSync("data-sources/jst-kz-global-equity/source.json", "utf8"),
   );
+  assert.equal(source.id, "jst-kz-global-equity-monthly-v2");
   assert.equal(source.status, "active-default");
   assert.equal(source.marketDataPath, "../../jst_kz_global_equity_monthly.csv");
   assert.equal(source.seed, DEFAULT_SEED);
+  assert.equal(
+    source.pre1970CurrencyMethod.id,
+    CURRENCY_CONVERSION_METHOD,
+  );
   assert.equal(
     source.simulationSampling.activeMode,
     "overlapping-historical-paths",
   );
   assert.equal(source.simulationSampling.sequence, "contiguous-no-wrap");
+
+  const outputPaths = {
+    "jst_kz_global_equity_monthly.csv": "jst_kz_global_equity_monthly.csv",
+    "annual-reconstruction.csv":
+      "data-sources/jst-kz-global-equity/annual-reconstruction.csv",
+    "country-audit.csv":
+      "data-sources/jst-kz-global-equity/country-audit.csv",
+    "monthly-provenance.csv":
+      "data-sources/jst-kz-global-equity/monthly-provenance.csv",
+  };
+  for (const [name, path] of Object.entries(outputPaths)) {
+    const checksum = createHash("sha256")
+      .update(readFileSync(path))
+      .digest("hex");
+    assert.equal(checksum, source.outputChecksumsSha256[name]);
+  }
 });

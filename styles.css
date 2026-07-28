@@ -785,6 +785,21 @@ button:focus-visible {
   padding: 7px 12px;
 }
 
+.icon-remove-button {
+  display: inline-grid;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  padding: 0;
+  place-items: center;
+  font-family: var(--font-body);
+  font-size: 1.15rem;
+  font-weight: 400;
+  line-height: 1;
+  text-transform: none;
+}
+
 #reset-session {
   flex: 0 0 auto;
 }
@@ -870,14 +885,18 @@ button:focus-visible {
 
 .child-row {
   display: grid;
-  gap: 10px;
+  gap: 6px;
+}
+
+.child-row > .field-group {
+  gap: 4px;
 }
 
 .child-row-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
 }
 
 .child-birth-year-row {

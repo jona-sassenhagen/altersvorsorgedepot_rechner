@@ -37,14 +37,14 @@ Der Rechner modelliert einen Haushalt mit:
 - einer antragstellenden Person
 - optional einer Partnerin oder einem Partner
 - null oder mehr Kindern
-- genau einer Kapitalanlage: eine rekonstruierte globale Developed-Markets-Aktienreihe in historischer deutscher Anlegerwährung bzw. EUR
+- genau einer Kapitalanlage: eine rekonstruierte globale Developed-Markets-Aktienreihe, vor 1970 währungsneutral in deutscher Kaufkraft und danach in EUR
 
 Die App projiziert die Ansparphase und anschließend ein vereinfachtes Brutto-Entnahmeszenario mit einem wählbaren anfänglichen jährlichen Entnahmesatz von 3 bis 5 Prozent (Standard: 4 Prozent). Tatsächliche Entnahmen sind auf das im jeweiligen persönlichen Depot verfügbare Vermögen begrenzt. Auszahlungsprodukte, Steuern in der Auszahlungsphase und alternative Entnahmestrategien werden nicht modelliert.
 
 ## Simulationsannahmen
 
 - Historische Datenquelle: die lokale JST/Kuvshinov–Zimmermann-Rekonstruktion in `jst_kz_global_equity_monthly.csv`.
-- Von 1900 bis 1969 werden marktkapitalisierungsgewichtete jährliche Aktienrenditen synthetisch auf Monatsverläufe verteilt; ab 1970 wird die lokale MSCI-World-EUR-Reihe von Curvo unverändert fortgeführt.
+- Von 1900 bis 1969 wird die marktkapitalisierungsgewichtete weltweite USD-Rendite mit US-Inflation real gerechnet und anschließend mit deutscher Inflation nominalisiert. Dadurch werden historische deutsche Währungsreformen nicht als Aktienrendite behandelt. Diese jährlichen Renditen werden synthetisch auf Monatsverläufe verteilt; ab 1970 wird die lokale MSCI-World-EUR-Reihe von Curvo unverändert fortgeführt.
 - Renditefrequenz: monatlich.
 - Szenariomethode: überlappende historische Pfade ohne Bootstrap. Jeder Pfad beginnt im gleichen Kalendermonat eines anderen historischen Jahres und folgt danach der vollständigen tatsächlichen Monatsreihenfolge von Markt und Inflation ohne Neuanordnung, Wiederholung oder zirkulären Übergang.
 - Anzahl Pfade: alle vollständigen historischen Startjahre, für die genügend Folgemonate bis zum persönlichen Modellende im Alter 90 vorhanden sind. Die Anzahl hängt deshalb vom Alter der antragstellenden Person und vom Projektionshorizont ab.
@@ -127,7 +127,7 @@ Diese Klassen sind Modellannahmen, keine gesetzlichen Tarifzonen:
 - Die App verwendet eine lokale monatliche deutsche CPI-Zeitreihe aus `inflation.csv`.
 - Für 1900 bis 1954 werden die jährlichen deutschen CPI-Veränderungen aus der JST Macrohistory Database gleichmäßig in logarithmischen Monatsraten verteilt. Diese Monatsverläufe sind synthetisch; insbesondere bilden sie den tatsächlichen Monatsverlauf der Hyperinflation 1923 nicht ab.
 - Die beobachtete monatliche Reihe stammt von Januar 1955 bis März 2025 von FRED/OECD (`DEUCPIALLMINMEI`) und wird ab April 2025 mit dem deutschen Verbraucherpreisindex von Destatis fortgeführt.
-- Die Aktienreihe von 1900 bis 1969 ist eine JST/Kuvshinov–Zimmermann-Approximation und keine Reproduktion des proprietären DMS-Index. Monatsrenditen vor 1970 sind synthetisch; ab 1970 wird die MSCI-World-EUR-Reihe von Curvo verwendet. Der MSCI World wurde erst 1986 aufgelegt, sodass auch Curvo-Werte von 1970 bis 1985 rückgerechnete Backtest-Daten sind.
+- Die Aktienreihe von 1900 bis 1969 ist eine JST/Kuvshinov–Zimmermann-Approximation und keine Reproduktion des proprietären DMS-Index. Sie bildet währungsneutrale globale Realrenditen in deutscher Kaufkraft ab, nicht die tatsächlich realisierte Rendite einer ungesicherten deutschen Anlegerperson. Monatsrenditen vor 1970 sind synthetisch; ab 1970 wird die MSCI-World-EUR-Reihe von Curvo verwendet. Der MSCI World wurde erst 1986 aufgelegt, sodass auch Curvo-Werte von 1970 bis 1985 rückgerechnete Backtest-Daten sind.
 - Wenn die Inflationsoption aktiviert ist, werden Ergebnisse in Preisen des letzten verfügbaren CPI-Monats ausgewiesen.
 - Für jeden historischen Pfad werden die monatlichen Inflationsverhältnisse gemeinsam mit den Renditen desselben historischen Monats in unveränderter Reihenfolge verwendet.
 - Historische Kapitalmarktdaten und CPI-Daten werden monatlich zusammengeführt, damit nominale und reale Ergebnisse aus demselben Simulationspfad entstehen.

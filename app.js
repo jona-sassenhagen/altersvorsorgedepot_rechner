@@ -121,7 +121,7 @@ const TRANSLATIONS = {
         'Direkte Förderung, Kinderförderung und der vereinfachte Steuervorteil folgen den <a href="./Annahmen.md">Annahmen in diesem Projekt</a>. Die modellierte Steuererstattung wird vollständig wieder in das Depot investiert. Nach dem Renteneintritt enden neue Einzahlungen; die Brutto-Entnahme mit dem gewählten Entnahmesatz ist auf das tatsächlich verfügbare Depotvermögen begrenzt. Auf Wunsch werden jährliche Produktkosten eingerechnet. Weitere offizielle Informationen gibt es beim <a href="https://www.bundesfinanzministerium.de/Content/DE/FAQ/reform-der-privaten-altersvorsorge.html">Bundesfinanzministerium</a>.',
       dataTitle: "Datenbasis",
       dataBody:
-        'Für 1900–1969 werden jährliche Aktienrenditen aus der <a href="https://www.macrohistory.net/database/">JST Macrohistory Database</a> mit historischen Marktkapitalisierungen von <a href="https://dkuvshinov.com/">Kuvshinov/Zimmermann</a> gewichtet. Synthetische Monatsverläufe werden auf diese Jahresrenditen skaliert; ab 1970 wird die lokale <a href="https://curvo.eu/backtest/en/market-index/msci-world?currency=eur">MSCI-World-EUR-Reihe von Curvo</a> unverändert fortgeführt. Deutsche Inflation wird 1900–1954 aus JST-Jahreswerten monatlich interpoliert, stammt 1955 bis März 2025 von <a href="https://fred.stlouisfed.org/series/DEUCPIALLMINMEI">FRED/OECD</a> und ab April 2025 vom <a href="https://www.destatis.de/DE/Themen/Wirtschaft/Preise/Verbraucherpreisindex/_inhalt.html">Statistischen Bundesamt</a>. <a href="./data-sources/jst-kz-global-equity/README.md">Methodik und Einschränkungen</a>.',
+        'Für 1900–1969 werden jährliche Aktienrenditen aus der <a href="https://www.macrohistory.net/database/">JST Macrohistory Database</a> mit historischen Marktkapitalisierungen von <a href="https://dkuvshinov.com/">Kuvshinov/Zimmermann</a> gewichtet. Die weltweite USD-Rendite wird mit US-Inflation in eine reale, währungsneutrale Rendite umgerechnet und anschließend mit deutscher Inflation nominalisiert; historische deutsche Währungsreformen erzeugen dadurch keine künstlichen Sprünge. Synthetische Monatsverläufe werden auf diese Jahresrenditen skaliert; ab 1970 wird die lokale <a href="https://curvo.eu/backtest/en/market-index/msci-world?currency=eur">MSCI-World-EUR-Reihe von Curvo</a> unverändert fortgeführt. Deutsche Inflation wird 1900–1954 aus JST-Jahreswerten monatlich interpoliert, stammt 1955 bis März 2025 von <a href="https://fred.stlouisfed.org/series/DEUCPIALLMINMEI">FRED/OECD</a> und ab April 2025 vom <a href="https://www.destatis.de/DE/Themen/Wirtschaft/Preise/Verbraucherpreisindex/_inhalt.html">Statistischen Bundesamt</a>. <a href="./data-sources/jst-kz-global-equity/README.md">Methodik und Einschränkungen</a>.',
       interpretationTitle: "Interpretation",
       interpretationBody:
         "Die Projektion ist kein garantiertes Ergebnis und keine Steuerberatung. Sie soll helfen, Größenordnungen zu vergleichen: Depotwert, eigene Einzahlungen, mögliche Förderung und wie stark Ergebnisse je nach historischer Marktphase schwanken.",
@@ -322,7 +322,7 @@ const TRANSLATIONS = {
         'Direct subsidies, child subsidies, and the simplified tax benefit follow the <a href="./Annahmen.md">assumptions used in this project</a>. The modeled tax refund is reinvested in full. After retirement, new contributions stop; gross withdrawals at the selected rate are capped at the assets actually available. Annual product fees can optionally be included. More official information is available from the <a href="https://www.bundesfinanzministerium.de/Content/DE/FAQ/reform-der-privaten-altersvorsorge.html">Federal Ministry of Finance</a>.',
       dataTitle: "Data basis",
       dataBody:
-        'For 1900–1969, annual equity returns from the <a href="https://www.macrohistory.net/database/">JST Macrohistory Database</a> are weighted using historical market capitalizations from <a href="https://dkuvshinov.com/">Kuvshinov/Zimmermann</a>. Synthetic monthly paths are scaled to those annual returns; from 1970 onward, the local <a href="https://curvo.eu/backtest/en/market-index/msci-world?currency=eur">Curvo MSCI World EUR series</a> is continued unchanged. German inflation for 1900–1954 is monthly-interpolated from JST annual observations, comes from <a href="https://fred.stlouisfed.org/series/DEUCPIALLMINMEI">FRED/OECD</a> from 1955 through March 2025, and from the <a href="https://www.destatis.de/EN/Themes/Economy/Prices/Consumer-Price-Index/_node.html">German Federal Statistical Office</a> thereafter. See the <a href="./data-sources/jst-kz-global-equity/README.md">methodology and limitations</a>.',
+        'For 1900–1969, annual equity returns from the <a href="https://www.macrohistory.net/database/">JST Macrohistory Database</a> are weighted using historical market capitalizations from <a href="https://dkuvshinov.com/">Kuvshinov/Zimmermann</a>. The global USD return is converted into a real, currency-neutral return with US inflation and then reinflated with German inflation, preventing historical German currency reforms from creating artificial jumps. Synthetic monthly paths are scaled to those annual returns; from 1970 onward, the local <a href="https://curvo.eu/backtest/en/market-index/msci-world?currency=eur">Curvo MSCI World EUR series</a> is continued unchanged. German inflation for 1900–1954 is monthly-interpolated from JST annual observations, comes from <a href="https://fred.stlouisfed.org/series/DEUCPIALLMINMEI">FRED/OECD</a> from 1955 through March 2025, and from the <a href="https://www.destatis.de/EN/Themes/Economy/Prices/Consumer-Price-Index/_node.html">German Federal Statistical Office</a> thereafter. See the <a href="./data-sources/jst-kz-global-equity/README.md">methodology and limitations</a>.',
       interpretationTitle: "Interpretation",
       interpretationBody:
         "This projection is not a guaranteed outcome and not tax advice. It is meant to help compare orders of magnitude: portfolio value, own contributions, possible subsidies, and how strongly results can vary across historical market phases.",
@@ -637,8 +637,12 @@ function localizeChildRow(row) {
     return;
   }
 
-  row.querySelector(".remove-child")?.setAttribute("aria-label", t("aria.removeChild"));
-  row.querySelector(".remove-child").textContent = t("controls.removeChild");
+  const removeButton = row.querySelector(".remove-child");
+  if (removeButton) {
+    removeButton.setAttribute("aria-label", t("aria.removeChild"));
+    removeButton.setAttribute("title", t("controls.removeChild"));
+    removeButton.textContent = "×";
+  }
   row.querySelector(".child-birth-year-label").textContent = t("controls.birthYear");
   row.querySelector(".child-birth-year")?.setAttribute("aria-label", t("aria.childBirthYear"));
 }
@@ -3264,7 +3268,16 @@ function rerenderOutputs() {
 
 function syncSpouseSection() {
   elements.spouseFields.classList.toggle("hidden", !uiState.hasSpouse);
-  elements.toggleSpouseButton.textContent = uiState.hasSpouse ? t("controls.removeSpouse") : t("controls.addSpouse");
+  elements.toggleSpouseButton.classList.toggle("icon-remove-button", uiState.hasSpouse);
+  elements.toggleSpouseButton.classList.toggle("small-button", !uiState.hasSpouse);
+  elements.toggleSpouseButton.textContent = uiState.hasSpouse ? "×" : t("controls.addSpouse");
+  if (uiState.hasSpouse) {
+    elements.toggleSpouseButton.setAttribute("aria-label", t("controls.removeSpouse"));
+    elements.toggleSpouseButton.setAttribute("title", t("controls.removeSpouse"));
+  } else {
+    elements.toggleSpouseButton.removeAttribute("aria-label");
+    elements.toggleSpouseButton.removeAttribute("title");
+  }
 }
 
 export {

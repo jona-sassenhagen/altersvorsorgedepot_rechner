@@ -1,6 +1,6 @@
 {
-  "id": "jst-kz-global-equity-monthly-v1",
-  "label": "JST/KZ global developed equity (synthetic monthly before 1970)",
+  "id": "jst-kz-global-equity-monthly-v2",
+  "label": "JST/KZ currency-neutral global developed equity (synthetic monthly before 1970)",
   "status": "active-default",
   "marketDataPath": "../../jst_kz_global_equity_monthly.csv",
   "syntheticPeriod": {
@@ -28,6 +28,12 @@
   },
   "generator": "./generate.mjs",
   "seed": "jst-kz-msci-world-eur-v1",
+  "pre1970CurrencyMethod": {
+    "id": "usd_real_return_reinflated_with_german_cpi",
+    "realReturn": "global USD total return deflated by US CPI",
+    "nominalAppReturn": "real global return reinflated by German CPI",
+    "interpretation": "currency-neutral global equity return in German purchasing-power terms"
+  },
   "simulationSampling": {
     "activeMode": "overlapping-historical-paths",
     "startFrequency": "annual",
@@ -42,6 +48,10 @@
     "observedInflationSuffix1955To2026": "d134c1549712e912b1a740af52a6cde711dab9a81dca857fc7851e768e658e1d"
   },
   "outputChecksumsSha256": {
+    "jst_kz_global_equity_monthly.csv": "c87ef54e26da23e90c4b4f090898987a4434c4fe713fe56e10c2a6aec0631387",
+    "annual-reconstruction.csv": "f89a861a91fab025c51f32b2d34d2c5196ec4770bfb3ef161ad1ad433b9db670",
+    "country-audit.csv": "95072bed87ed6209dd8a2e7e6419a0d31d7b2560b059445659ce8cfcd2260f2a",
+    "monthly-provenance.csv": "544d3a22cc756e961ba2dcbb7df5a7afcdc1eb5b86b963d16d712aee41184aa1",
     "inflation.csv": "af93e3e491c0a16159a6c0bde2d034f5b3fdc2526fbdb894eb6713198ad0a455",
     "inflation-annual-backcast.csv": "137ee07affd66bca1fa81041fb9ea0eb821a601d71384acc86051db6c15a2fb6"
   }

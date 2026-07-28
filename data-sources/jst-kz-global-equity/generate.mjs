@@ -9,6 +9,8 @@ export const DEFAULT_SEED = "jst-kz-msci-world-eur-v1";
 export const DEFAULT_START_YEAR = 1900;
 export const DEFAULT_END_YEAR = 1969;
 export const DEFAULT_REFERENCE_ISO = "DEU";
+export const DEFAULT_REAL_RETURN_ISO = "USA";
+export const CURRENCY_CONVERSION_METHOD = "usd_real_return_reinflated_with_german_cpi";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(SCRIPT_DIR, "../..");
@@ -242,6 +244,7 @@ export function reconstructAnnualReturns({
   startYear = DEFAULT_START_YEAR,
   endYear = DEFAULT_END_YEAR,
   referenceIso = DEFAULT_REFERENCE_ISO,
+  realReturnIso = DEFAULT_REAL_RETURN_ISO,
 }) {
   if (startYear > endYear) throw new Error("startYear must not exceed endYear.");
 
@@ -269,6 +272,34 @@ export function reconstructAnnualReturns({
   const countryAudit = [];
 
   for (let year = startYear; year <= endYear; year += 1) {
+    const referenceCpiStart = positiveNumber(
+      jst.get(`${referenceIso}:${year - 1}`)?.cpi,
+    );
+    const referenceCpiEnd = positiveNumber(
+      jst.get(`${referenceIso}:${year}`)?.cpi,
+    );
+    const realReturnCpiStart = positiveNumber(
+      jst.get(`${realReturnIso}:${year - 1}`)?.cpi,
+    );
+    const realReturnCpiEnd = positiveNumber(
+      jst.get(`${realReturnIso}:${year}`)?.cpi,
+    );
+    if (
+      referenceCpiStart === null ||
+      referenceCpiEnd === null ||
+      realReturnCpiStart === null ||
+      realReturnCpiEnd === null
+    ) {
+      throw new Error(
+        `Missing positive CPI needed for currency-neutral reconstruction in ${year}.`,
+      );
+    }
+    const referenceInflationFactor = referenceCpiEnd / referenceCpiStart;
+    const realReturnInflationFactor =
+      realReturnCpiEnd / realReturnCpiStart;
+    const purchasingPowerParityFxFactor =
+      referenceInflationFactor / realReturnInflationFactor;
+
     const candidates = [];
     let knownStartCapUsd = 0;
 
@@ -335,7 +366,7 @@ export function reconstructAnnualReturns({
 
     const startReference = referenceFx.get(year - 1);
     const endReference = referenceFx.get(year);
-    const referenceFxRatio = endReference.value / startReference.value;
+    const rawReferenceFxFactor = endReference.value / startReference.value;
     let worldUsdGross = 0;
 
     for (const candidate of candidates) {
@@ -345,8 +376,11 @@ export function reconstructAnnualReturns({
       const contributionUsd = candidate.included
         ? startWeight * (candidate.usdGross - 1)
         : null;
-      const referenceCurrencyReturn = candidate.included
-        ? candidate.usdGross * referenceFxRatio - 1
+      const currencyNeutralReferenceReturn = candidate.included
+        ? candidate.usdGross * purchasingPowerParityFxFactor - 1
+        : null;
+      const rawReferenceCurrencyReturn = candidate.included
+        ? candidate.usdGross * rawReferenceFxFactor - 1
         : null;
 
       if (candidate.included) {
@@ -357,12 +391,17 @@ export function reconstructAnnualReturns({
         ...candidate,
         startWeight,
         usdReturn: candidate.included ? candidate.usdGross - 1 : null,
-        referenceCurrencyReturn,
+        referenceCurrencyReturn: currencyNeutralReferenceReturn,
+        rawReferenceCurrencyReturn,
         contributionUsd,
       });
     }
 
-    const referenceCurrencyGross = worldUsdGross * referenceFxRatio;
+    const realUsdGross = worldUsdGross / realReturnInflationFactor;
+    const referenceCurrencyGross =
+      realUsdGross * referenceInflationFactor;
+    const rawReferenceCurrencyGross =
+      worldUsdGross * rawReferenceFxFactor;
     if (!(referenceCurrencyGross > 0)) {
       throw new Error(
         `Reconstructed reference-currency return factor is not positive for ${year}.`,
@@ -372,11 +411,17 @@ export function reconstructAnnualReturns({
     annual.push({
       year,
       referenceCurrencyReturn: referenceCurrencyGross - 1,
+      realUsdReturn: realUsdGross - 1,
       usdReturn: worldUsdGross - 1,
+      referenceInflationFactor,
+      realReturnInflationFactor,
+      purchasingPowerParityFxFactor,
+      rawReferenceCurrencyReturn: rawReferenceCurrencyGross - 1,
       referenceFxStart: startReference.value,
       referenceFxEnd: endReference.value,
       referenceFxInterpolated:
         startReference.interpolated || endReference.interpolated,
+      currencyConversionMethod: CURRENCY_CONVERSION_METHOD,
       eligibleCountries: included.length,
       universeCountries: universe.length,
       knownCapCoverage:
@@ -808,22 +853,35 @@ export function renderOutputs({
     annual: csvText(
       [
         "year",
-        "annual_return_german_currency",
+        "annual_return_german_currency_neutral",
+        "annual_return_real_usd",
         "annual_return_usd",
+        "german_inflation_factor",
+        "us_inflation_factor",
+        "ppp_fx_factor",
+        "annual_return_german_raw_fx_diagnostic",
         "reference_fx_start",
         "reference_fx_end",
         "reference_fx_interpolated",
+        "currency_conversion_method",
         "eligible_countries",
         "universe_countries",
         "known_cap_coverage",
       ],
       annual.map((row) => ({
         year: row.year,
-        annual_return_german_currency: row.referenceCurrencyReturn,
+        annual_return_german_currency_neutral: row.referenceCurrencyReturn,
+        annual_return_real_usd: row.realUsdReturn,
         annual_return_usd: row.usdReturn,
+        german_inflation_factor: row.referenceInflationFactor,
+        us_inflation_factor: row.realReturnInflationFactor,
+        ppp_fx_factor: row.purchasingPowerParityFxFactor,
+        annual_return_german_raw_fx_diagnostic:
+          row.rawReferenceCurrencyReturn,
         reference_fx_start: row.referenceFxStart,
         reference_fx_end: row.referenceFxEnd,
         reference_fx_interpolated: row.referenceFxInterpolated,
+        currency_conversion_method: row.currencyConversionMethod,
         eligible_countries: row.eligibleCountries,
         universe_countries: row.universeCountries,
         known_cap_coverage: row.knownCapCoverage,
@@ -841,7 +899,8 @@ export function renderOutputs({
         "return_source",
         "local_return",
         "usd_return",
-        "reference_currency_return",
+        "currency_neutral_german_return",
+        "raw_german_fx_return_diagnostic",
         "usd_return_contribution",
       ],
       countryAudit.map((row) => ({
@@ -855,7 +914,8 @@ export function renderOutputs({
         return_source: row.returnSource,
         local_return: row.localReturn,
         usd_return: row.usdReturn,
-        reference_currency_return: row.referenceCurrencyReturn,
+        currency_neutral_german_return: row.referenceCurrencyReturn,
+        raw_german_fx_return_diagnostic: row.rawReferenceCurrencyReturn,
         usd_return_contribution: row.contributionUsd,
       })),
     ),

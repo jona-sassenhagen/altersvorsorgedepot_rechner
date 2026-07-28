@@ -121,18 +121,46 @@ market-cap-weighted basket:
 F^{USD}_{world,t} = \sum_i w_{i,t-1}F^{USD}_{i,t}.
 \]
 
-Because the app’s observed series is in EUR, the pre-1970 target is expressed
-for a German-currency investor:
+### Currency-neutral real-return conversion
+
+The historical German exchange-rate levels are not treated as a continuous
+investment numeraire. That would turn currency reforms and changes of unit
+into apparent equity gains or losses. Instead, the USD world return is first
+converted to a real return using US CPI:
 
 \[
-F^{DE}_{world,t}
-  = F^{USD}_{world,t}\frac{x_{DEU,t}}{x_{DEU,t-1}}.
+F^{real}_{world,t}
+  = \frac{F^{USD}_{world,t}}
+          {CPI^{USA}_t/CPI^{USA}_{t-1}}.
 \]
 
-“German currency” means the historically applicable German nominal unit
-represented by the JST exchange-rate series, not a claim that euros existed
-before 1999. This produces a compatible nominal German-investor perspective
-for the splice to the later EUR series.
+The app-shaped nominal target is then obtained by adding German inflation:
+
+\[
+F^{DE,neutral}_{world,t}
+  = F^{real}_{world,t}
+    \frac{CPI^{DEU}_t}{CPI^{DEU}_{t-1}}.
+\]
+
+Equivalently, the implied currency factor is the relative-inflation or
+purchasing-power-parity factor
+
+\[
+F^{PPP}_{FX,t}
+  = \frac{CPI^{DEU}_t/CPI^{DEU}_{t-1}}
+          {CPI^{USA}_t/CPI^{USA}_{t-1}}.
+\]
+
+When the simulator divides the nominal target by German CPI, it recovers the
+real USD world-equity return exactly. This removes artificial jumps from the
+German currency regimes, including the post-war RM/DM discontinuity.
+
+The interpretation is therefore **currency-neutral global equity performance
+in German purchasing-power terms**, not the realized return of an unhedged
+German investor. Actual historical FX gains and losses are intentionally not
+modeled before 1970. `annual-reconstruction.csv` retains the result of the old
+raw German-FX conversion as a diagnostic, but that diagnostic is not used to
+construct the monthly index.
 
 ### Missing observations
 
@@ -147,11 +175,10 @@ renormalized if its beginning market cap, beginning/end exchange rate, or
 return remains unavailable. Every inclusion, exclusion, fallback, weight, and
 contribution is written to `country-audit.csv`.
 
-Germany’s 1945 exchange-rate observation is missing. The reference-currency
-conversion uses geometric interpolation between the positive 1944 and 1946
-observations for the 1945 reference rate. The annual audit flags 1945 and 1946
-with `reference_fx_interpolated=true`. No country exchange rate used for
-country-level weighting or returns is otherwise filled.
+Germany’s 1945 exchange-rate observation is missing. It is geometrically
+interpolated only for the raw-FX diagnostic in `annual-reconstruction.csv`;
+the active currency-neutral target does not use it. No country exchange rate
+used for country-level weighting or USD country returns is otherwise filled.
 
 ## Synthetic monthly reconstruction
 
@@ -222,7 +249,9 @@ timing of monthly inflation shocks.
 - `../../jst_kz_global_equity_monthly.csv` — app-shaped monthly index series.
 - `../../inflation.csv` — German monthly CPI with a synthetic 1900–1954
   extension and unchanged observations from 1955 onward.
-- `annual-reconstruction.csv` — target annual returns and coverage.
+- `annual-reconstruction.csv` — currency-neutral target annual returns,
+  underlying real and nominal USD returns, CPI/PPP factors, the unused raw-FX
+  diagnostic, and coverage.
 - `country-audit.csv` — country eligibility, weights, sources, and
   contributions.
 - `monthly-provenance.csv` — target-to-donor-year mapping and log shifts.
