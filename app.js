@@ -1,5 +1,6 @@
 const MARKET_DATA_PATH = "./jst_kz_global_equity_monthly.csv";
 const CPI_DATA_PATH = "./inflation.csv";
+const BASIS_RATE_DATA_PATH = "./basiszins.csv";
 const BOOTSTRAP_BLOCK_MONTHS = 15 * 12;
 const SIMULATION_COUNT = 2500;
 const MAX_AGE = 90;
@@ -26,7 +27,7 @@ const CHART_LOADING_FRAME_MS = 380;
 const CHART_LOADING_SEQUENCE = [".", "..", "..."];
 const MAX_CHILDREN = 25;
 const SESSION_STORAGE_KEY = "altersvorsorgedepot.session.v1";
-const SESSION_VERSION = 5;
+const SESSION_VERSION = 11;
 const LEGACY_THEME_STORAGE_KEY = "theme";
 const DEFAULT_CHILD_BENEFIT_YEARS = 18;
 const MIN_CHILD_BENEFIT_YEARS = 16;
@@ -37,6 +38,31 @@ const SAMPLING_MODE_HISTORICAL_PATHS = "historical-paths";
 const SAMPLING_MODE_BLOCK_BOOTSTRAP = "block-bootstrap";
 const MIN_EXPECTED_REAL_RETURN = -1;
 const MAX_EXPECTED_REAL_RETURN = 1;
+const CAPITAL_GAINS_TAX_RATE = 0.25;
+const SOLIDARITY_SURCHARGE_RATE = 0.055;
+const EQUITY_FUND_TAXABLE_SHARE = 0.7;
+const SAVER_ALLOWANCE_SINGLE = 1000;
+const AVD_ELIGIBLE_OWN_CONTRIBUTION_CAP = 1800;
+const PENSION_EXPENSE_ALLOWANCE = 102;
+const KVDR_ANNUAL_CONTRIBUTION_CEILING_2026 = 69_750;
+const KVDR_GENERAL_HEALTH_INSURANCE_RATE_2026 = 0.146;
+const KVDR_AVERAGE_ADDITIONAL_RATE_2026 = 0.029;
+const KVDR_PENSIONER_HEALTH_SHARE = 0.5;
+const KVDR_CARE_INSURANCE_PARENT_RATE = 0.036;
+const KVDR_CARE_INSURANCE_CHILDLESS_RATE = 0.042;
+const KVDR_CARE_INSURANCE_CHILD_DISCOUNT = 0.0025;
+const SOLIDARITY_SURCHARGE_EXEMPTION_SINGLE = 20_350;
+const SOLIDARITY_SURCHARGE_MITIGATION_RATE = 0.119;
+const COMPARISON_PENSION_LEVELS = [0, 1000, 2000, 3000];
+const DEFAULT_ETF_TRANCHE_COUNT = 5;
+const DEFAULT_ETF_MONTHLY_CONTRIBUTION = 500;
+const MIN_ETF_TRANCHE_COUNT = 1;
+const MAX_ETF_TRANCHE_COUNT = 20;
+const ETF_HISTORY_START_YEAR = 1900;
+const ETF_HISTORY_END_YEAR = 2100;
+const CURRENT_PENSION_POINT_VALUE = 42.52;
+const PENSION_INPUT_MODE_MONTHLY = "monthly";
+const PENSION_INPUT_MODE_POINTS = "points";
 
 const INCOME_BRACKETS = [
   { id: "zero", rate: 0.0 },
@@ -87,10 +113,103 @@ const TRANSLATIONS = {
         Number.isFinite(count) ? `${formatNumber(count, { maximumFractionDigits: 0 })} historische Pfade` : "Historische Pfade",
       marketSeries: "Weltaktien 1900–2026",
       retirementValue: "Ø Depotwert bei Rentenbeginn",
-      withdrawalIncome: "Ø Zusatzrente (Brutto)",
+      withdrawalIncome: "Ø Zusatzrente inkl. Riester (Brutto)",
       withdrawalRateCaption: "Entnahme% (Erfolg%)",
       retirementBand: "95%-Band bei Renteneintritt",
       averageSupport: "Ø jährliche Förderung",
+    },
+    comparison: {
+      modeAria: "Ansicht wählen",
+      projectionMode: "Projektion",
+      comparisonMode: "Nettovergleich",
+      eyebrow: "Nachgelagerte Besteuerung vs. Steuerstundung",
+      title: "Was bleibt im Ruhestand?",
+      intro: "Der Vergleich lässt denselben ETF-Basisplan in beiden Szenarien laufen und lenkt den Haushaltsbeitrag X entweder ins AVD oder zusätzlich in den ETF.",
+      taxYear: "Steuermodell 2026",
+      incomeAria: "Annahmen für den Ruhestand",
+      pensionInput: "Gesetzliche Rente",
+      pensionModeAria: "Renteneingabe",
+      pensionModeMonthly: "€ / Monat",
+      pensionModePoints: "Rentenpunkte",
+      pensionMonthly: "Brutto / Monat",
+      pensionPoints: "Gesammelte Rentenpunkte",
+      pensionPointsUnit: "Punkte",
+      pensionPointsConversion: ({ amount } = {}) => `≈ ${amount} brutto / Monat · 42,52 € je Punkt`,
+      etfContributionMonthly: "Bestehende ETF-Rate / Monat",
+      etfProfileTitle: "Bestehender ETF-Sparplan",
+      savingsStartYear: "Sparbeginn",
+      savingsEndYear: "Sparende",
+      firePhaseTitle: "Phase nach Sparende (FIRE)",
+      postSavingsFlow: "ETF-Bewegung / Monat",
+      postSavingsFlowHint: "Ab Januar nach Sparende bis zur Rente: positiv = Einzahlung, negativ = Entnahme, 0 € = keine Bewegung.",
+      trancheCount: "Anzahl der Tranchen",
+      savingsProfileHint: "Dieser Basisplan läuft in beiden Szenarien gleich. Nur der Haushaltsbeitrag X fließt wahlweise ins AVD oder zusätzlich in diesen ETF.",
+      etfRetirementValue: "ETF-Basisdepot zum Rentenbeginn",
+      etfContributions: "Einzahlungen in den Basisplan",
+      etfUnrealizedGain: "Unrealisierter Gewinn",
+      etfAdvanceAssessments: "Angesetzte Vorabpauschalen",
+      etfTaxPaid: "ETF-Steuern vor Rentenbeginn",
+      etfLossCarryforward: "Verbleibender ETF-Verlusttopf",
+      fireWithdrawalsPaid: "Ausgezahlte FIRE-Bruttoentnahmen",
+      fireWithdrawalShortfall: "Nicht gedeckte FIRE-Bruttoentnahmen",
+      fireDepotDepleted: ({ share } = {}) => `Depot vor Rentenbeginn leer in ${share} der historischen Pfade. Nicht gedeckte Entnahmen werden nicht als Einkommen gezählt.`,
+      avdLabel: "Altersvorsorgedepot",
+      etfLabel: "Gewöhnliches Aktien-ETF-Depot",
+      avdExplanation: "Der geförderte Anteil ist voll steuerpflichtig; beim ungeförderten Anteil nur der Ertrag.",
+      etfExplanation: "Nur der Gewinnanteil wird nach Teilfreistellung und Pauschbetrag besteuert.",
+      favorableTaxApplied: "Günstigerprüfung angewandt",
+      flatTaxApplied: "Abgeltungsteuer angewandt",
+      deltaAria: "Netto-Unterschied",
+      avdAdvantage: "Vorteil für das AVD",
+      avdDisadvantage: "Nachteil für das AVD",
+      avdNeutral: "Vorteil/Nachteil für das AVD",
+      averageAvdAdvantage: ({ paths } = {}) => `Durchschnittlicher Vorteil für das AVD · ${paths} Pfade`,
+      averageAvdDisadvantage: ({ paths } = {}) => `Durchschnittlicher Nachteil für das AVD · ${paths} Pfade`,
+      averageAvdNeutral: ({ paths } = {}) => `Durchschnittlicher Vorteil/Nachteil für das AVD · ${paths} Pfade`,
+      grossWithdrawal: "Konsolidierte Zusatzvorsorge: Bruttoentnahme AVD / ETF",
+      avdTax: "Steuer und KV/PV mit AVD",
+      etfTax: "Steuer und KV/PV mit ETF",
+      taxBridgeAria: "Wirkung von Steuer und KV/PV",
+      chartTitle: "Vom Brutto zum Netto",
+      chartIntro: "Bruttoeinkünfte werden addiert; Einkommensteuer und die modellierten KVdR-Beiträge werden anschließend gemeinsam abgezogen.",
+      chartAria: ({ scenario, gross, pension, baselineEtf, compared, tax, net } = {}) =>
+        `${scenario}: ${pension} Bruttorente plus ${baselineEtf} brutto aus dem ETF-Basisplan plus ${compared} brutto aus der Zusatzvorsorge ergeben ${gross} brutto. Abzüglich ${tax} Einkommensteuer sowie Kranken- und Pflegeversicherungsbeiträgen verbleiben ${net} netto pro Monat.`,
+      pensionGrossLegend: "Gesetzliche Rente · brutto",
+      baselineEtfGrossLegend: "ETF-Basisplan · brutto",
+      comparedGrossLegend: "Zusatzvorsorge inkl. Riester · brutto",
+      taxLegend: "Steuer + KV/PV · negativ",
+      netLegend: "Gesamtnetto",
+      grossToNetDetail: ({ gross, net } = {}) => `${gross} brutto → ${net} netto pro Monat`,
+      cumulativeValue: "Zwischensumme",
+      allocationNote: "Rente, ETF-Basisplan und die Entnahme aus übertragenem Riester-Guthaben werden in beiden Szenarien als gemeinsame Einkommensströme berücksichtigt. Der letzte positive Balken konsolidiert Riester mit der Entnahme aus Betrag X. Der negative Balken umfasst Einkommensteuer und KVdR-Beiträge.",
+      distributionTitle: "Verteilung des AVD-Vorteils",
+      distributionIntro: "Jeder Balken zählt identische historische Marktpfade nach dem monatlichen Gesamtnetto-Unterschied AVD minus ETF.",
+      distributionAvdBetter: "AVD besser",
+      distributionMedian: "Medianer Vorteil/Nachteil",
+      distributionLogValue: "Logarithmischer Vorteil",
+      distributionEtfSide: "ETF besser",
+      distributionAvdSide: "AVD besser",
+      distributionZero: "0 €",
+      distributionAxisTitle: "Monatlicher Netto-Vorteil des AVD",
+      distributionRange: ({ lower, upper } = {}) => `Mittlere 80 % der Pfade: ${lower} bis ${upper} pro Monat`,
+      distributionReturnSplitTitle: ({ median } = {}) => `Reale Aktienrendite bis Rentenbeginn · Median ${median} p.a.`,
+      distributionBelowMedianReturn: "Unter Medianrendite",
+      distributionAboveMedianReturn: "Über Medianrendite",
+      distributionRegimeWinRate: ({ rate, paths } = {}) => `AVD besser in ${rate} · ${paths} Pfade`,
+      distributionAria: ({ paths, winRate, median, lower, upper } = {}) =>
+        `Verteilung über ${paths} historische Pfade. Das AVD ist in ${winRate} der Pfade besser. Der mediane gepaarte Unterschied beträgt ${median} pro Monat; 80 Prozent liegen zwischen ${lower} und ${upper}.`,
+      distributionBinTitle: ({ lower, upper, count, share } = {}) => `${lower} bis ${upper}: ${count} Pfade (${share})`,
+      distributionLowerTailTitle: ({ upper, count, share } = {}) => `Bis ${upper}: ${count} Pfade (${share})`,
+      distributionUpperTailTitle: ({ lower, count, share } = {}) => `Ab ${lower}: ${count} Pfade (${share})`,
+      scenarioTitle: "Gesamtes Nettoalterseinkommen",
+      scenarioIntro: "Jede Zeile zeigt AVD / ETF und summiert Rente, bestehenden ETF-Basisplan und Betrag X nach Einkommensteuer und KVdR-Beiträgen.",
+      matrixUnit: "AVD / ETF · netto pro Monat",
+      pensionAxis: "Rente / Monat",
+      scenarioValues: "AVD / ETF",
+      cellAria: ({ pension, avd, ordinaryEtf } = {}) =>
+        `${pension} gesetzliche Rente: insgesamt ${avd} netto pro Monat mit Altersvorsorgedepot, ${ordinaryEtf} netto pro Monat mit ETF-Depot.`,
+      assumptionsTitle: "So liest du den Vergleich",
+      assumptionsBody: "Der bestehende ETF-Basisplan läuft in beiden Szenarien gleich; Betrag X fließt entweder ins AVD oder zusätzlich in den ETF. AVD-Auszahlungen werden nach gefördertem und ungefördertem Kapital aufgeteilt. Beim thesaurierenden ETF werden Verlustverrechnung, Vorabpauschalen im Folgejahr, Teilfreistellung, verfügbarer Pauschbetrag, Abgeltungsteuer und Günstigerprüfung modelliert. Für alle Haushalte wird KVdR unterstellt: Beiträge fallen nur auf die gesetzliche Rente an, werden vom verfügbaren Einkommen abgezogen und als Vorsorgeaufwendungen steuerlich berücksichtigt. Nicht enthalten: Kirchensteuer.",
     },
     chart: {
       title: "Wertentwicklung des Depots",
@@ -143,7 +262,7 @@ const TRANSLATIONS = {
       spouseIncomeGroup: "Grenzsteuersatz Partnerin oder Partner",
       retirementMedianInfo: "Info zu Ø Depotwert bei Rentenbeginn",
       withdrawalRuleInfo:
-        "Info zur Brutto-Zusatzrente, Erfolgsquote und möglichen Entnahmelücken beim gewählten Entnahmesatz",
+        "Info zur konsolidierten Brutto-Zusatzrente, Erfolgsquote und möglichen Entnahmelücken beim gewählten Entnahmesatz",
       withdrawalRate: "Jährlichen Entnahmesatz wählen",
       withdrawalRateHelp:
         "Die zweite Prozentzahl je Option ist der Anteil der Pfade ohne Entnahmelücke bis zum Modellende im Alter 90 der antragstellenden Person.",
@@ -172,11 +291,11 @@ const TRANSLATIONS = {
         retirementMedian:
           "Zeigt den Median der modellierten Depotwerte zum Rentenbeginn. Der Median ist der mittlere Wert einer Verteilung: 50 % der Ergebnisse liegen darunter und 50 % darüber. Wenn ein Partner einbezogen ist, bezieht sich der Wert auf das gemeinsame Depot zu dem Zeitpunkt, an dem beide im Ruhestand sind.",
         withdrawalRule: ({ rate }) =>
-          `Brutto vor Steuern. Der angezeigte Wert ist der Median der modellierten Zusatzrenten: 50 % der Ergebnisse liegen darunter und 50 % darüber. Die anfängliche jährliche Entnahme beträgt ${rate} des Depotwerts zum Ruhestart und wird danach mit der Inflation fortgeschrieben. Ausgewiesen wird höchstens der Betrag, den das jeweilige Depot tatsächlich bezahlen kann.`,
+          `Brutto vor Steuern. Der angezeigte Wert ist derselbe arithmetische Durchschnitt der konsolidierten AVD-Bruttoentnahme wie im Nettovergleich: Betrag X plus die Entnahme aus übertragenem Riester-Guthaben. Die anfängliche jährliche Entnahme beträgt ${rate} des jeweiligen Depotwerts zum Ruhestart und wird danach mit der Inflation fortgeschrieben. Im ETF-Szenario bleibt die Riester-Entnahme als identischer, nachgelagert besteuerter Einkommensstrom erhalten; nur Betrag X fließt stattdessen in den ETF.`,
         retirementBand:
           "Ein 95-%-Band beschreibt den Bereich, in dem 95 % der betrachteten Ergebnisse liegen. Es hilft, die Bandbreite möglicher Entwicklungen zu visualisieren.",
         averageSupport:
-          "Die ausgewiesene durchschnittliche jährliche Förderung umfasst die direkte Förderung inklusive Steuervorteil im vereinfachten Modell dieses Rechners.",
+          "Median der durchschnittlichen Förderung in Jahren mit Einzahlungen. Enthalten sind direkte Förderung und Steuervorteil im vereinfachten Modell; die Darstellung folgt der gewählten Nominal-/Realansicht.",
         childBenefitDuration:
           "Legt fest, bis zu welchem Alter ein eingetragenes Kind in der modellierten Kinderförderung berücksichtigt wird. Die Einstellung bildet keine individuelle rechtliche Anspruchsprüfung ab.",
       },
@@ -288,10 +407,103 @@ const TRANSLATIONS = {
         Number.isFinite(count) ? `${formatNumber(count, { maximumFractionDigits: 0 })} historical paths` : "Historical paths",
       marketSeries: "Global equities 1900–2026",
       retirementValue: "Avg. portfolio value at retirement",
-      withdrawalIncome: "Avg. extra income (gross)",
+      withdrawalIncome: "Avg. extra income incl. Riester (gross)",
       withdrawalRateCaption: "Withdrawal% (success%)",
       retirementBand: "95% band at retirement",
       averageSupport: "Avg. annual subsidy",
+    },
+    comparison: {
+      modeAria: "Choose view",
+      projectionMode: "Projection",
+      comparisonMode: "Net comparison",
+      eyebrow: "Deferred income tax vs. deferred capital-gains tax",
+      title: "What remains in retirement?",
+      intro: "The comparison simulates the same baseline ETF plan in both scenarios and directs household contribution X either to the AVD or into the ETF.",
+      taxYear: "2026 tax model",
+      incomeAria: "Retirement assumptions",
+      pensionInput: "Statutory pension",
+      pensionModeAria: "Pension input",
+      pensionModeMonthly: "€ / month",
+      pensionModePoints: "Pension points",
+      pensionMonthly: "Gross / month",
+      pensionPoints: "Accumulated pension points",
+      pensionPointsUnit: "points",
+      pensionPointsConversion: ({ amount } = {}) => `≈ ${amount} gross / month · €42.52 per point`,
+      etfContributionMonthly: "Existing ETF contribution / month",
+      etfProfileTitle: "Existing ETF savings plan",
+      savingsStartYear: "Savings start",
+      savingsEndYear: "Savings end",
+      firePhaseTitle: "Post-savings phase (FIRE)",
+      postSavingsFlow: "ETF cash flow / month",
+      postSavingsFlowHint: "From January after savings end until retirement: positive = contribution, negative = withdrawal, €0 = no cash flow.",
+      trancheCount: "Number of tranches",
+      savingsProfileHint: "This baseline plan is identical in both scenarios. Only household contribution X goes either to the AVD or additionally into this ETF.",
+      etfRetirementValue: "Baseline ETF at retirement",
+      etfContributions: "Baseline-plan contributions",
+      etfUnrealizedGain: "Unrealized gain",
+      etfAdvanceAssessments: "Advance lump sums recognized",
+      etfTaxPaid: "ETF tax before retirement",
+      etfLossCarryforward: "Remaining ETF loss carryforward",
+      fireWithdrawalsPaid: "Gross FIRE withdrawals paid",
+      fireWithdrawalShortfall: "Unfunded gross FIRE withdrawals",
+      fireDepotDepleted: ({ share } = {}) => `Portfolio depleted before retirement in ${share} of historical paths. Unfunded withdrawals are not counted as income.`,
+      avdLabel: "Retirement savings portfolio",
+      etfLabel: "Ordinary equity ETF account",
+      avdExplanation: "The funded portion is fully taxable; only earnings are taxed on the non-funded portion.",
+      etfExplanation: "Only the gain share is taxed after the partial exemption and saver allowance.",
+      favorableTaxApplied: "Lower-tax assessment applied",
+      flatTaxApplied: "Flat capital tax applied",
+      deltaAria: "Net difference",
+      avdAdvantage: "Advantage for the AVD",
+      avdDisadvantage: "Disadvantage for the AVD",
+      avdNeutral: "Advantage/disadvantage for the AVD",
+      averageAvdAdvantage: ({ paths } = {}) => `Average advantage for the AVD · ${paths} paths`,
+      averageAvdDisadvantage: ({ paths } = {}) => `Average disadvantage for the AVD · ${paths} paths`,
+      averageAvdNeutral: ({ paths } = {}) => `Average AVD advantage/disadvantage · ${paths} paths`,
+      grossWithdrawal: "Consolidated additional retirement income: gross withdrawal AVD / ETF",
+      avdTax: "Tax and health/care with AVD",
+      etfTax: "Tax and health/care with ETF",
+      taxBridgeAria: "Tax and health/care effect",
+      chartTitle: "From gross to net",
+      chartIntro: "Gross income is added first; income tax and modeled KVdR contributions are then deducted together.",
+      chartAria: ({ scenario, gross, pension, baselineEtf, compared, tax, net } = {}) =>
+        `${scenario}: ${pension} gross statutory pension plus ${baselineEtf} gross from the baseline ETF plus ${compared} gross from additional retirement income equal ${gross} gross. After ${tax} income tax and health and long-term care contributions, ${net} net remains per month.`,
+      pensionGrossLegend: "Statutory pension · gross",
+      baselineEtfGrossLegend: "Baseline ETF · gross",
+      comparedGrossLegend: "Additional retirement income incl. Riester · gross",
+      taxLegend: "Tax + health/care · negative",
+      netLegend: "Total net",
+      grossToNetDetail: ({ gross, net } = {}) => `${gross} gross → ${net} net per month`,
+      cumulativeValue: "Running total",
+      allocationNote: "Pension, the baseline ETF, and withdrawals from transferred Riester assets are treated as common income streams in both scenarios. The final positive bar consolidates Riester with the withdrawal funded by amount X. The negative bar includes income tax and KVdR contributions.",
+      distributionTitle: "Distribution of the AVD advantage",
+      distributionIntro: "Each bar counts identical historical market paths by the monthly total-net difference: AVD minus ETF.",
+      distributionAvdBetter: "AVD better",
+      distributionMedian: "Median advantage/disadvantage",
+      distributionLogValue: "Log-utility advantage",
+      distributionEtfSide: "ETF better",
+      distributionAvdSide: "AVD better",
+      distributionZero: "€0",
+      distributionAxisTitle: "Monthly net advantage of the AVD",
+      distributionRange: ({ lower, upper } = {}) => `Middle 80% of paths: ${lower} to ${upper} per month`,
+      distributionReturnSplitTitle: ({ median } = {}) => `Real equity return until retirement · median ${median} p.a.`,
+      distributionBelowMedianReturn: "Below median return",
+      distributionAboveMedianReturn: "Above median return",
+      distributionRegimeWinRate: ({ rate, paths } = {}) => `AVD better in ${rate} · ${paths} paths`,
+      distributionAria: ({ paths, winRate, median, lower, upper } = {}) =>
+        `Distribution across ${paths} historical paths. The AVD is better in ${winRate} of paths. The median paired difference is ${median} per month; 80 percent lie between ${lower} and ${upper}.`,
+      distributionBinTitle: ({ lower, upper, count, share } = {}) => `${lower} to ${upper}: ${count} paths (${share})`,
+      distributionLowerTailTitle: ({ upper, count, share } = {}) => `Up to ${upper}: ${count} paths (${share})`,
+      distributionUpperTailTitle: ({ lower, count, share } = {}) => `From ${lower}: ${count} paths (${share})`,
+      scenarioTitle: "Total net retirement income",
+      scenarioIntro: "Each row shows AVD / ETF and adds pension, the existing baseline ETF, and amount X after income tax and KVdR contributions.",
+      matrixUnit: "AVD / ETF · net per month",
+      pensionAxis: "Pension / month",
+      scenarioValues: "AVD / ETF",
+      cellAria: ({ pension, avd, ordinaryEtf } = {}) =>
+        `${pension} statutory pension: ${avd} total net per month with the retirement portfolio, ${ordinaryEtf} total net per month with the ETF account.`,
+      assumptionsTitle: "How to read the comparison",
+      assumptionsBody: "The baseline ETF is identical in both scenarios; amount X goes either to the AVD or additionally into the ETF. AVD payments are split into funded and non-funded capital. For the accumulating ETF, loss offsets, next-year advance lump sums, partial exemption, available saver allowance, flat tax, and the retirement tax comparison are modeled. Every household is assumed to use KVdR: contributions apply only to the statutory pension, are deducted from spendable income, and reduce taxable income as pension expenses. Church tax is excluded.",
     },
     chart: {
       title: "Portfolio growth over time",
@@ -344,7 +556,7 @@ const TRANSLATIONS = {
       spouseIncomeGroup: "Spouse marginal tax rate",
       retirementMedianInfo: "Info about average portfolio value at retirement",
       withdrawalRuleInfo:
-        "Information about gross extra income, success rate, and possible shortfalls at the selected withdrawal rate",
+        "Information about consolidated gross extra income, success rate, and possible shortfalls at the selected withdrawal rate",
       withdrawalRate: "Select the annual withdrawal rate",
       withdrawalRateHelp:
         "The second percentage in each option is the share of paths without a withdrawal shortfall through the model horizon at applicant age 90.",
@@ -373,11 +585,11 @@ const TRANSLATIONS = {
         retirementMedian:
           "Shows the median modeled portfolio value at retirement. The median is the middle of the distribution: 50% of outcomes are below it and 50% are above it. If a spouse is included, the value refers to the joint portfolio once both people are retired.",
         withdrawalRule: ({ rate }) =>
-          `Gross before tax. The displayed value is the median modeled extra income: 50% of outcomes are below it and 50% are above it. The initial annual withdrawal is ${rate} of the portfolio value at retirement and is then increased with inflation. The amount shown is capped at what each portfolio can actually pay.`,
+          `Gross before tax. The displayed value is the same arithmetic average consolidated AVD gross withdrawal used in the net comparison: amount X plus the withdrawal from transferred Riester assets. The initial annual withdrawal is ${rate} of each portfolio value at retirement and is then increased with inflation. In the ETF scenario, the Riester withdrawal remains as the identical deferred-tax income stream; only amount X is redirected to the ETF.`,
         retirementBand:
           "A 95% band shows the range that contains 95% of the modeled outcomes. It helps visualize the spread of possible paths.",
         averageSupport:
-          "The reported average annual subsidy includes direct subsidies plus the tax benefit in this calculator's simplified model.",
+          "Median average subsidy in years with contributions. It includes direct subsidies plus the tax benefit in this calculator's simplified model and follows the selected nominal/real view.",
         childBenefitDuration:
           "Sets the age until which an entered child is included in the modeled child subsidy. This setting is not an individual legal eligibility assessment.",
       },
@@ -519,6 +731,38 @@ const elements = hasDom
       chartTooltip: document.querySelector("#chart-tooltip"),
       chartWrapper: document.querySelector("#chart-wrapper"),
       chartLegend: document.querySelector("#chart-legend"),
+      projectionMode: document.querySelector("#projection-mode"),
+      comparisonMode: document.querySelector("#comparison-mode"),
+      projectionView: document.querySelector("#projection-view"),
+      comparisonView: document.querySelector("#comparison-view"),
+      comparisonPension: document.querySelector("#comparison-pension"),
+      comparisonPensionPoints: document.querySelector("#comparison-pension-points"),
+      pensionModeMonthly: document.querySelector("#pension-mode-monthly"),
+      pensionModePoints: document.querySelector("#pension-mode-points"),
+      pensionMonthlyField: document.querySelector("#pension-monthly-field"),
+      pensionPointsField: document.querySelector("#pension-points-field"),
+      pensionPointsConversion: document.querySelector("#pension-points-conversion"),
+      comparisonEtfContribution: document.querySelector("#comparison-etf-contribution"),
+      comparisonSavingsStart: document.querySelector("#comparison-savings-start"),
+      comparisonSavingsEnd: document.querySelector("#comparison-savings-end"),
+      comparisonPostSavingsFlow: document.querySelector("#comparison-post-savings-flow"),
+      comparisonTrancheCount: document.querySelector("#comparison-tranche-count"),
+      comparisonEtfRetirementValue: document.querySelector("#comparison-etf-retirement-value"),
+      comparisonEtfContributions: document.querySelector("#comparison-etf-contributions"),
+      comparisonEtfGain: document.querySelector("#comparison-etf-gain"),
+      comparisonEtfAdvanceAssessments: document.querySelector("#comparison-etf-advance-assessments"),
+      comparisonEtfTaxPaid: document.querySelector("#comparison-etf-tax-paid"),
+      comparisonEtfLossCarryforward: document.querySelector("#comparison-etf-loss-carryforward"),
+      comparisonFireWithdrawals: document.querySelector("#comparison-fire-withdrawals"),
+      comparisonFireShortfall: document.querySelector("#comparison-fire-shortfall"),
+      comparisonFireStatus: document.querySelector("#comparison-fire-status"),
+      comparisonEtfTaxMethod: document.querySelector("#comparison-etf-tax-method"),
+      comparisonDelta: document.querySelector("#comparison-delta"),
+      comparisonDeltaLabel: document.querySelector("#comparison-delta-label"),
+      comparisonBars: document.querySelector("#comparison-bars"),
+      comparisonAdvantageDistribution: document.querySelector("#comparison-advantage-distribution"),
+      comparisonScenarioHead: document.querySelector("#comparison-scenario-head"),
+      comparisonScenarioBody: document.querySelector("#comparison-scenario-body"),
     }
   : {};
 
@@ -541,6 +785,8 @@ const uiState = {
   language: DEFAULT_LANGUAGE,
   expectedRealReturnMode: RETURN_MODE_HISTORICAL,
   customExpectedRealReturn: 0.03,
+  resultMode: "projection",
+  pensionInputMode: PENSION_INPUT_MODE_MONTHLY,
 };
 
 function activeLanguage() {
@@ -661,10 +907,13 @@ function refreshLocalizedUi() {
   syncWithdrawalRateControl();
   syncChartToggleButtons();
   syncSpouseSection();
+  syncResultMode();
+  syncPensionInputMode();
   setDataStatus();
   if (latestChartState) {
     renderSummary(latestChartState, uiState.adjustInflation);
     renderChart(latestChartState);
+    renderTaxComparison(latestChartState);
   }
 }
 
@@ -697,13 +946,20 @@ async function initialize() {
   saveSession();
 
   try {
-    // Both datasets are required before the first calculation can run, so load them together.
-    const [marketCsv, cpiCsv] = await Promise.all([fetchText(MARKET_DATA_PATH), fetchText(CPI_DATA_PATH)]);
+    // All series are required before the first calculation so every historical market path can
+    // carry its matching inflation and Basiszins environment into the ETF tax sidecar.
+    const [marketCsv, cpiCsv, basisRateCsv] = await Promise.all([
+      fetchText(MARKET_DATA_PATH),
+      fetchText(CPI_DATA_PATH),
+      fetchText(BASIS_RATE_DATA_PATH),
+    ]);
     const inflation = parseCpiCsv(cpiCsv);
-    const market = parseMarketCsv(marketCsv, inflation);
+    const basisRates = parseBasisRateCsv(basisRateCsv);
+    const market = parseMarketCsv(marketCsv, inflation, basisRates);
     datasets = {
       market,
       inflation,
+      basisRates,
     };
     syncReturnControl();
     ensureSimulationWorker();
@@ -852,12 +1108,13 @@ function applyTheme(theme) {
 
 function seedDefaults() {
   uiState.adjustInflation = true;
-  uiState.adjustInflowsForInflation = false;
+  uiState.adjustInflowsForInflation = true;
   uiState.showConfidenceBand = true;
   uiState.hasSpouse = false;
   uiState.language = activeLanguage();
   uiState.expectedRealReturnMode = RETURN_MODE_HISTORICAL;
   uiState.customExpectedRealReturn = 0.03;
+  uiState.pensionInputMode = PENSION_INPUT_MODE_MONTHLY;
   elements.applicantBirthYear.value = "1990";
   elements.applicantContribution.value = "150";
   elements.existingContract.value = "0";
@@ -868,6 +1125,13 @@ function seedDefaults() {
   elements.spouseBirthYear.value = "1992";
   elements.spouseContribution.value = "150";
   elements.spouseRetirementAge.value = "67";
+  elements.comparisonPension.value = "1500";
+  elements.comparisonPensionPoints.value = (1500 / CURRENT_PENSION_POINT_VALUE).toFixed(1);
+  elements.comparisonEtfContribution.value = String(DEFAULT_ETF_MONTHLY_CONTRIBUTION);
+  elements.comparisonSavingsStart.value = String(new Date().getFullYear());
+  elements.comparisonSavingsEnd.value = "2057";
+  elements.comparisonPostSavingsFlow.value = "0";
+  elements.comparisonTrancheCount.value = String(DEFAULT_ETF_TRANCHE_COUNT);
   setIncomeSelection(elements.applicantIncome, "medium");
   setIncomeSelection(elements.spouseIncome, "medium");
   clearChildren();
@@ -1166,6 +1430,30 @@ function wireEvents() {
     runCalculation();
   });
 
+  elements.projectionMode.addEventListener("click", () => setResultMode("projection"));
+  elements.comparisonMode.addEventListener("click", () => setResultMode("comparison"));
+  elements.comparisonPension.addEventListener("input", () => {
+    saveSession();
+    renderTaxComparison(latestChartState);
+  });
+  elements.comparisonPensionPoints.addEventListener("input", () => {
+    syncPensionInputMode();
+    saveSession();
+    renderTaxComparison(latestChartState);
+  });
+  elements.pensionModeMonthly.addEventListener("click", () => setPensionInputMode(PENSION_INPUT_MODE_MONTHLY));
+  elements.pensionModePoints.addEventListener("click", () => setPensionInputMode(PENSION_INPUT_MODE_POINTS));
+  for (const input of [elements.comparisonEtfContribution, elements.comparisonSavingsStart, elements.comparisonSavingsEnd, elements.comparisonPostSavingsFlow, elements.comparisonTrancheCount]) {
+    input.addEventListener("input", () => {
+      saveSession();
+      scheduleCalculation();
+    });
+    input.addEventListener("change", () => {
+      saveSession();
+      runCalculation();
+    });
+  }
+
   elements.resetSessionButton.addEventListener("click", resetSession);
 }
 
@@ -1284,7 +1572,7 @@ function loadSession() {
       return null;
     }
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || ![1, 2, 3, 4, 5].includes(parsed.version)) {
+    if (!parsed || typeof parsed !== "object" || ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].includes(parsed.version)) {
       localStorage.removeItem(SESSION_STORAGE_KEY);
       return null;
     }
@@ -1310,6 +1598,30 @@ function migrateSession(session) {
   }
   if (session.version < 5) {
     migrated.controls.withdrawalRate = DEFAULT_WITHDRAWAL_RATE;
+  }
+  if (session.version < 6) {
+    migrated.controls.resultMode = "projection";
+    migrated.controls.comparisonPensionMonthly = 1500;
+    migrated.controls.comparisonEtfMonthly = 500;
+    migrated.controls.comparisonGainShare = 50;
+  }
+  if (session.version < 7) {
+    migrated.controls.comparisonSavingsStartYear = new Date().getFullYear();
+    migrated.controls.comparisonSavingsEndYear = 2057;
+    migrated.controls.comparisonTrancheCount = DEFAULT_ETF_TRANCHE_COUNT;
+    delete migrated.controls.comparisonGainShare;
+  }
+  if (session.version < 8) {
+    migrated.controls.comparisonEtfContributionMonthly = DEFAULT_ETF_MONTHLY_CONTRIBUTION;
+    delete migrated.controls.comparisonEtfMonthly;
+  }
+  if (session.version < 9) {
+    const monthlyPension = Number(migrated.controls.comparisonPensionMonthly) || 1500;
+    migrated.controls.comparisonPensionInputMode = PENSION_INPUT_MODE_MONTHLY;
+    migrated.controls.comparisonPensionPoints = monthlyPension / CURRENT_PENSION_POINT_VALUE;
+  }
+  if (session.version < 10) {
+    migrated.controls.comparisonPostSavingsFlowMonthly = 0;
   }
   return migrated;
 }
@@ -1347,6 +1659,17 @@ function restoreSession(session) {
     setInputValue(elements.projectedFee, session.controls.projectedFee);
     setInputValue(elements.childBenefitDuration, session.controls.childBenefitDurationYears);
     setStoredWithdrawalRate(session.controls.withdrawalRate);
+    uiState.resultMode = session.controls.resultMode === "comparison" ? "comparison" : "projection";
+    setInputValue(elements.comparisonPension, session.controls.comparisonPensionMonthly);
+    setInputValue(elements.comparisonPensionPoints, session.controls.comparisonPensionPoints);
+    uiState.pensionInputMode = session.controls.comparisonPensionInputMode === PENSION_INPUT_MODE_POINTS
+      ? PENSION_INPUT_MODE_POINTS
+      : PENSION_INPUT_MODE_MONTHLY;
+    setInputValue(elements.comparisonEtfContribution, session.controls.comparisonEtfContributionMonthly);
+    setInputValue(elements.comparisonSavingsStart, session.controls.comparisonSavingsStartYear);
+    setInputValue(elements.comparisonSavingsEnd, session.controls.comparisonSavingsEndYear);
+    setInputValue(elements.comparisonPostSavingsFlow, session.controls.comparisonPostSavingsFlowMonthly);
+    setInputValue(elements.comparisonTrancheCount, session.controls.comparisonTrancheCount);
     if (typeof session.controls.adjustInflation === "boolean") {
       uiState.adjustInflation = session.controls.adjustInflation;
     }
@@ -1447,6 +1770,15 @@ function snapshotSession() {
       customExpectedRealReturn: uiState.customExpectedRealReturn,
       childBenefitDurationYears: elements.childBenefitDuration.value,
       withdrawalRate: elements.withdrawalRate.value,
+      resultMode: uiState.resultMode,
+      comparisonPensionMonthly: elements.comparisonPension.value,
+      comparisonPensionPoints: elements.comparisonPensionPoints.value,
+      comparisonPensionInputMode: uiState.pensionInputMode,
+      comparisonEtfContributionMonthly: elements.comparisonEtfContribution.value,
+      comparisonSavingsStartYear: elements.comparisonSavingsStart.value,
+      comparisonSavingsEndYear: elements.comparisonSavingsEnd.value,
+      comparisonPostSavingsFlowMonthly: elements.comparisonPostSavingsFlow.value,
+      comparisonTrancheCount: elements.comparisonTrancheCount.value,
     },
   };
 }
@@ -1494,7 +1826,7 @@ async function fetchText(path) {
   return response.text();
 }
 
-function parseMarketCsv(csvText, inflation) {
+function parseMarketCsv(csvText, inflation, basisRates = new Map()) {
   const lines = csvText.trim().split(/\r?\n/);
   const levels = lines.slice(1).map((line) => {
     const [month, value] = line.split(",");
@@ -1524,6 +1856,7 @@ function parseMarketCsv(csvText, inflation) {
       key: entry.key,
       marketReturn: entry.value,
       inflationRatio: inflation.monthlyRatios.get(entry.key),
+      basisRate: basisRates.get(Number(entry.key.slice(0, 4))) ?? 0,
     }));
 
   if (bootstrapSeries.length < BOOTSTRAP_BLOCK_MONTHS + 1) {
@@ -1531,6 +1864,20 @@ function parseMarketCsv(csvText, inflation) {
   }
 
   return { levels, returns, bootstrapSeries };
+}
+
+function parseBasisRateCsv(csvText) {
+  const rates = new Map();
+  for (const line of csvText.trim().split(/\r?\n/).slice(1)) {
+    const [yearText, rateText] = line.split(",");
+    const year = Number(yearText);
+    const rate = Number(rateText);
+    if (Number.isInteger(year) && Number.isFinite(rate)) rates.set(year, rate / 100);
+  }
+  for (let year = 1900; year <= 2026; year += 1) {
+    if (!rates.has(year)) throw new Error(`Missing Basiszins estimate for ${year}.`);
+  }
+  return rates;
 }
 
 function parseCpiCsv(csvText) {
@@ -1567,6 +1914,25 @@ function calculateHistoricalRealCagr(bootstrapSeries) {
   }
 
   return Math.expm1((realLogSum / bootstrapSeries.length) * 12);
+}
+
+function calculatePathRealCagr(observations) {
+  if (!Array.isArray(observations) || observations.length === 0) {
+    return 0;
+  }
+  let realLogSum = 0;
+  for (const observation of observations) {
+    const marketFactor = 1 + Number(observation.marketReturn);
+    const inflationRatio = Number(observation.inflationRatio);
+    if (!(inflationRatio > 0)) {
+      return 0;
+    }
+    if (!(marketFactor > 0)) {
+      return -1;
+    }
+    realLogSum += Math.log(marketFactor / inflationRatio);
+  }
+  return Math.expm1((realLogSum / observations.length) * 12);
 }
 
 function calculateBootstrapSamplingRealCagr(
@@ -1806,6 +2172,13 @@ function readHouseholdState() {
     children,
     childBenefitDurationYears,
     annualFeeRate,
+    etfComparison: {
+      monthlyContribution: Number(elements.comparisonEtfContribution.value),
+      startYear: Number(elements.comparisonSavingsStart.value),
+      endYear: Number(elements.comparisonSavingsEnd.value),
+      postSavingsMonthlyFlow: Number(elements.comparisonPostSavingsFlow.value),
+      trancheCount: Number(elements.comparisonTrancheCount.value),
+    },
   };
 }
 
@@ -1955,6 +2328,35 @@ function resolveWithdrawalRateCandidates(values, selectedRate) {
   return unique;
 }
 
+function summarizeEtfPathSet(paths, realTerms) {
+  const inflationAdjusted = (path, value) => realTerms
+    ? value * Math.max(Number(path.realTermsBaseInflation) || 1, 1e-12) /
+      Math.max(path.cumulativeInflation, 1e-12)
+    : value;
+  return {
+    advanceAssessments: summarizeSamples(paths.map((path) => inflationAdjusted(path, path.advanceAssessments))),
+    advanceTaxPaid: summarizeSamples(paths.map((path) => inflationAdjusted(path, path.advanceTaxPaid))),
+    totalTaxPaid: summarizeSamples(paths.map((path) => inflationAdjusted(path, path.totalTaxPaid))),
+    capitalLossCarryforward: summarizeSamples(paths.map((path) => inflationAdjusted(path, path.capitalLossCarryforward))),
+    pendingAdvanceAssessment: summarizeSamples(paths.map((path) => inflationAdjusted(path, path.pendingAdvanceAssessment))),
+    contributions: summarizeSamples(paths.map((path) => realTerms ? path.realContributions : path.contributions)),
+    remainingCostBasis: summarizeSamples(paths.map((path) => inflationAdjusted(path, path.remainingCostBasis))),
+    preRetirementWithdrawals: summarizeSamples(paths.map((path) => realTerms
+      ? path.realPreRetirementWithdrawals
+      : path.preRetirementWithdrawals)),
+    preRetirementNetWithdrawals: summarizeSamples(paths.map((path) => realTerms
+      ? inflationAdjusted(path, path.preRetirementNetWithdrawals)
+      : path.preRetirementNetWithdrawals)),
+    preRetirementWithdrawalShortfall: summarizeSamples(paths.map((path) => realTerms
+      ? path.realPreRetirementWithdrawalShortfall
+      : path.preRetirementWithdrawalShortfall)),
+    depletedPathShare: paths.length > 0
+      ? paths.filter((path) => path.preRetirementWithdrawalShortfall > 1e-6).length / paths.length
+      : 0,
+    value: summarizeSamples(paths.map((path) => inflationAdjusted(path, path.value))),
+  };
+}
+
 function simulateHousehold(household, data, options = {}) {
   const sourceBootstrapSeries = Array.isArray(data) ? data : data.market.bootstrapSeries;
   const bootstrapSeries = recenterBootstrapSeries(sourceBootstrapSeries, options.expectedRealAnnualReturn);
@@ -2016,10 +2418,47 @@ function simulateHousehold(household, data, options = {}) {
     withdrawalsReal: Array.from({ length: chartYears }, () => []),
   };
 
-  let aggregateSupport = 0;
+  const averageAnnualSupportNominalSamples = [];
+  const averageAnnualSupportRealSamples = [];
   const withdrawalOutcomes = [];
+  const applicantRetirementDate = retirementDateForPerson(household.applicant.birthdate, household.applicant.retirementAge);
+  const spouseRetirementDate = household.spouse
+    ? retirementDateForPerson(household.spouse.birthdate, household.spouse.retirementAge)
+    : null;
+  const comparisonRetirementDate = spouseRetirementDate && spouseRetirementDate > applicantRetirementDate
+    ? spouseRetirementDate
+    : applicantRetirementDate;
+  let comparisonReturnMonthCount = 0;
+  while (
+    comparisonReturnMonthCount < totalMonths &&
+    addMonths(now, comparisonReturnMonthCount) < comparisonRetirementDate
+  ) {
+    comparisonReturnMonthCount += 1;
+  }
+  const spouseAgeNow = household.spouse ? preciseAge(household.spouse.birthdate, now) : null;
+  const retirementYear = clamp(Math.ceil(household.applicant.retirementAge - applicantAge), 0, years);
+  const spouseRetirementYear = spouseAgeNow === null
+    ? null
+    : clamp(Math.ceil(household.spouse.retirementAge - spouseAgeNow), 0, years);
+  const preRetirementYear = Math.max(retirementYear, spouseRetirementYear ?? retirementYear);
+  const etfBaselinePaths = [];
+  const etfAlternativePaths = [];
+  const comparisonPaths = [];
   const withdrawalRateSuccessCounts = new Map(
     withdrawalRateCandidates.map((rate) => [rate, 0]),
+  );
+  const resolvedEtfConfig = resolveEtfComparisonConfig(household.etfComparison, now);
+  const etfHistoricalPrelude = buildEtfHistoricalPrelude(
+    sourceBootstrapSeries,
+    resolvedEtfConfig.startYear,
+    now,
+  );
+  const etfTimelineStart = etfHistoricalPrelude.length > 0
+    ? new Date(resolvedEtfConfig.startYear, 0, 1)
+    : now;
+  const etfInflationAtDecisionStart = etfHistoricalPrelude.reduce(
+    (factor, observation) => factor * observation.inflationRatio,
+    1,
   );
 
   for (let iteration = 0; iteration < resolvedSimulationCount; iteration += 1) {
@@ -2039,7 +2478,102 @@ function simulateHousehold(household, data, options = {}) {
       withdrawalRate,
       withdrawalRateCandidates,
     );
-    aggregateSupport += path.totalSupport;
+    const avdDecisionPath = household.applicant.initialBalance > 0
+      ? projectPath(
+          {
+            ...household,
+            applicant: { ...household.applicant, initialBalance: 0 },
+          },
+          monthlyPath,
+          now,
+          years,
+          adjustInflowsForInflation,
+          withdrawalRate,
+          [withdrawalRate],
+        )
+      : path;
+    const etfMonthlyPath = etfHistoricalPrelude.length > 0
+      ? [...etfHistoricalPrelude, ...monthlyPath]
+      : monthlyPath;
+    const baselineEtfPath = projectOrdinaryEtfPath({
+      adjustInflowsForInflation,
+      config: resolvedEtfConfig,
+      decisionStartDate: now,
+      household,
+      monthlyPath: etfMonthlyPath,
+      now: etfTimelineStart,
+      realTermsBaseInflation: etfInflationAtDecisionStart,
+      retirementDate: comparisonRetirementDate,
+    });
+    const alternativeEtfPath = projectOrdinaryEtfPath({
+      adjustInflowsForInflation,
+      config: resolvedEtfConfig,
+      decisionStartDate: now,
+      household,
+      includeDecisionContribution: true,
+      monthlyPath: etfMonthlyPath,
+      now: etfTimelineStart,
+      realTermsBaseInflation: etfInflationAtDecisionStart,
+      retirementDate: comparisonRetirementDate,
+    });
+    etfBaselinePaths.push(baselineEtfPath);
+    etfAlternativePaths.push(alternativeEtfPath);
+    const comparisonWithdrawalYear = firstPositivePathValueIndex(
+      path.householdWithdrawalNominal,
+      preRetirementYear,
+    );
+    const avdNominalWithdrawal =
+      (avdDecisionPath.householdWithdrawalNominal[comparisonWithdrawalYear] ?? 0) * 12;
+    const avdNominalTaxableWithdrawal =
+      (avdDecisionPath.householdTaxableWithdrawalNominal[comparisonWithdrawalYear] ?? 0) * 12;
+    const avdRealWithdrawal =
+      (avdDecisionPath.householdWithdrawalReal[comparisonWithdrawalYear] ?? 0) * 12;
+    const avdRealTaxableWithdrawal =
+      (avdDecisionPath.householdTaxableWithdrawalReal[comparisonWithdrawalYear] ?? 0) * 12;
+    comparisonPaths.push({
+      pathRealAnnualReturn: comparisonReturnMonthCount > 0
+        ? calculatePathRealCagr(monthlyPath.slice(0, comparisonReturnMonthCount))
+        : 0,
+      avdNominalValue: avdDecisionPath.householdNominal[preRetirementYear] ?? 0,
+      avdNominalWithdrawal,
+      avdNominalTaxableWithdrawal,
+      avdRealValue: avdDecisionPath.householdReal[preRetirementYear] ?? 0,
+      avdRealWithdrawal,
+      avdRealTaxableWithdrawal,
+      commonAvdNominalValue: Math.max(
+        (path.householdNominal[preRetirementYear] ?? 0) -
+          (avdDecisionPath.householdNominal[preRetirementYear] ?? 0),
+        0,
+      ),
+      commonAvdNominalWithdrawal: Math.max(
+        (path.householdWithdrawalNominal[comparisonWithdrawalYear] ?? 0) * 12 - avdNominalWithdrawal,
+        0,
+      ),
+      commonAvdNominalTaxableWithdrawal: Math.max(
+        (path.householdTaxableWithdrawalNominal[comparisonWithdrawalYear] ?? 0) * 12 -
+          avdNominalTaxableWithdrawal,
+        0,
+      ),
+      commonAvdRealValue: Math.max(
+        (path.householdReal[preRetirementYear] ?? 0) -
+          (avdDecisionPath.householdReal[preRetirementYear] ?? 0),
+        0,
+      ),
+      commonAvdRealWithdrawal: Math.max(
+        (path.householdWithdrawalReal[comparisonWithdrawalYear] ?? 0) * 12 - avdRealWithdrawal,
+        0,
+      ),
+      commonAvdRealTaxableWithdrawal: Math.max(
+        (path.householdTaxableWithdrawalReal[comparisonWithdrawalYear] ?? 0) * 12 -
+          avdRealTaxableWithdrawal,
+        0,
+      ),
+      baselineEtf: baselineEtfPath,
+      alternativeEtf: alternativeEtfPath,
+    });
+    const supportYearDivisor = Math.max(path.supportPaymentYearCount, 1);
+    averageAnnualSupportNominalSamples.push(path.totalSupport / supportYearDivisor);
+    averageAnnualSupportRealSamples.push(path.totalSupportReal / supportYearDivisor);
     withdrawalOutcomes.push(path.withdrawalOutcome);
     for (const outcome of path.withdrawalRateOutcomes) {
       if (outcome.success) {
@@ -2078,8 +2612,6 @@ function simulateHousehold(household, data, options = {}) {
   }
 
   const yearlyStats = [];
-  const spouseAgeNow = household.spouse ? preciseAge(household.spouse.birthdate, now) : null;
-
   for (let yearIndex = 0; yearIndex <= years; yearIndex += 1) {
     yearlyStats.push({
       yearIndex,
@@ -2128,14 +2660,6 @@ function simulateHousehold(household, data, options = {}) {
     });
   }
 
-  const retirementYear = clamp(Math.ceil(household.applicant.retirementAge - applicantAge), 0, years);
-  const spouseRetirementYear =
-    spouseAgeNow === null ? null : clamp(Math.ceil(household.spouse.retirementAge - spouseAgeNow), 0, years);
-  const preRetirementYear = Math.max(retirementYear, spouseRetirementYear ?? retirementYear);
-  const applicantRetirementDate = retirementDateForPerson(household.applicant.birthdate, household.applicant.retirementAge);
-  const spouseRetirementDate = household.spouse
-    ? retirementDateForPerson(household.spouse.birthdate, household.spouse.retirementAge)
-    : null;
   const retirementChartPosition = chartPositionForDate(applicantRetirementDate, chartYearStart, chartYears);
   const spouseRetirementChartPosition = spouseRetirementDate
     ? chartPositionForDate(spouseRetirementDate, chartYearStart, chartYears)
@@ -2143,6 +2667,10 @@ function simulateHousehold(household, data, options = {}) {
   const preRetirementChartIndex = Math.max(
     Math.floor(retirementChartPosition),
     spouseRetirementChartPosition === null ? Math.floor(retirementChartPosition) : Math.floor(spouseRetirementChartPosition),
+  );
+  const kvdrCareInsuranceRate = kvdrCareInsuranceRateForHousehold(
+    household.children,
+    comparisonRetirementDate,
   );
 
   return {
@@ -2159,7 +2687,12 @@ function simulateHousehold(household, data, options = {}) {
     retirementChartPosition,
     spouseRetirementChartPosition,
     preRetirementChartIndex,
-    averageAnnualSupport: aggregateSupport / (resolvedSimulationCount * years),
+    comparisonPaths,
+    averageAnnualSupport: summarizeSamples(averageAnnualSupportRealSamples).median,
+    averageAnnualSupportStats: {
+      nominal: summarizeSamples(averageAnnualSupportNominalSamples),
+      real: summarizeSamples(averageAnnualSupportRealSamples),
+    },
     withdrawalRate,
     withdrawalStats: summarizeWithdrawalOutcomes(
       withdrawalOutcomes,
@@ -2176,7 +2709,17 @@ function simulateHousehold(household, data, options = {}) {
         withdrawalRateSuccessCounts.get(rate) /
         Math.max(resolvedSimulationCount, 1),
     })),
+    etfComparison: {
+      paths: etfBaselinePaths,
+      alternativePaths: etfAlternativePaths,
+      nominal: summarizeEtfPathSet(etfBaselinePaths, false),
+      real: summarizeEtfPathSet(etfBaselinePaths, true),
+      alternativeNominal: summarizeEtfPathSet(etfAlternativePaths, false),
+      alternativeReal: summarizeEtfPathSet(etfAlternativePaths, true),
+      config: resolveEtfComparisonConfig(household.etfComparison, now),
+    },
     hasSpouse: Boolean(household.spouse),
+    kvdrCareInsuranceRate,
   };
 }
 
@@ -2246,6 +2789,65 @@ function creditWithdrawalRateTrackers(trackers, support) {
   }
 }
 
+function createAvdTaxPool(initialFundedValue = 0) {
+  return {
+    fundedValue: Math.max(Number(initialFundedValue) || 0, 0),
+    unfundedValue: 0,
+    unfundedBasis: 0,
+  };
+}
+
+function avdTaxPoolValue(pool) {
+  return pool.fundedValue + pool.unfundedValue;
+}
+
+function growAvdTaxPool(pool, monthlyReturn, monthlyFeeFactor) {
+  pool.fundedValue *= (1 + monthlyReturn) * monthlyFeeFactor;
+  pool.unfundedValue *= (1 + monthlyReturn) * monthlyFeeFactor;
+}
+
+function contributeToAvdTaxPool(pool, contribution, fundedAmount, valueFactor = 1) {
+  const amount = Math.max(Number(contribution) || 0, 0);
+  const funded = clamp(Number(fundedAmount) || 0, 0, amount);
+  const unfunded = amount - funded;
+  pool.fundedValue += funded * valueFactor;
+  pool.unfundedValue += unfunded * valueFactor;
+  pool.unfundedBasis += unfunded;
+}
+
+function creditAvdSupport(pool, directSupport, reinvestedTaxRefund) {
+  pool.fundedValue += Math.max(Number(directSupport) || 0, 0);
+  const refund = Math.max(Number(reinvestedTaxRefund) || 0, 0);
+  pool.unfundedValue += refund;
+  pool.unfundedBasis += refund;
+}
+
+function withdrawFromAvdTaxPool(pool, requestedAmount) {
+  const totalValue = avdTaxPoolValue(pool);
+  const paid = Math.min(Math.max(Number(requestedAmount) || 0, 0), totalValue);
+  if (paid <= 0 || totalValue <= 0) {
+    return { paid: 0, taxable: 0, funded: 0, unfunded: 0, unfundedGain: 0 };
+  }
+  const funded = paid * (pool.fundedValue / totalValue);
+  const unfunded = paid - funded;
+  const unfundedShare = pool.unfundedValue > 0 ? unfunded / pool.unfundedValue : 0;
+  const recoveredBasis = Math.min(pool.unfundedBasis * unfundedShare, unfunded);
+  const unfundedGain = Math.max(unfunded - recoveredBasis, 0);
+  pool.fundedValue = Math.max(pool.fundedValue - funded, 0);
+  pool.unfundedValue = Math.max(pool.unfundedValue - unfunded, 0);
+  pool.unfundedBasis = Math.max(pool.unfundedBasis - recoveredBasis, 0);
+  return { paid, taxable: funded + unfundedGain, funded, unfunded, unfundedGain };
+}
+
+function firstPositivePathValueIndex(values, startIndex = 0) {
+  for (let index = Math.max(Math.floor(startIndex), 0); index < values.length; index += 1) {
+    if ((Number(values[index]) || 0) > 0) {
+      return index;
+    }
+  }
+  return Math.max(Math.floor(startIndex), 0);
+}
+
 function projectPath(
   household,
   bootstrap,
@@ -2260,9 +2862,13 @@ function projectPath(
     withdrawalRateCandidates,
     resolvedWithdrawalRate,
   );
-  let applicantValue = household.applicant.initialBalance;
+  const applicantTaxPool = createAvdTaxPool(household.applicant.initialBalance);
+  const spouseTaxPool = createAvdTaxPool(0);
+  let applicantValue = avdTaxPoolValue(applicantTaxPool);
   let spouseValue = 0;
   let totalSupport = 0;
+  let totalSupportReal = 0;
+  let supportPaymentYearCount = 0;
   let householdContributionValue = 0;
   let householdContributionRealValue = 0;
   let householdInflowValue = 0;
@@ -2275,6 +2881,8 @@ function projectPath(
   let spouseWithdrawalInitialized = false;
   let latestHouseholdWithdrawalNominal = 0;
   let latestHouseholdWithdrawalReal = 0;
+  let latestHouseholdTaxableWithdrawalNominal = 0;
+  let latestHouseholdTaxableWithdrawalReal = 0;
   let cumulativeRequestedWithdrawalNominal = 0;
   let cumulativeRequestedWithdrawalReal = 0;
   let cumulativePaidWithdrawalNominal = 0;
@@ -2302,6 +2910,8 @@ function projectPath(
   const householdInflowReal = [0];
   const householdWithdrawalNominal = [0];
   const householdWithdrawalReal = [0];
+  const householdTaxableWithdrawalNominal = [0];
+  const householdTaxableWithdrawalReal = [0];
   const chartYearStart = now.getFullYear();
   const chartYearEnd = addMonths(now, bootstrap.length - 1).getFullYear();
   const chartBuckets = Array.from({ length: chartYearEnd - chartYearStart + 1 }, (_, index) =>
@@ -2310,6 +2920,9 @@ function projectPath(
 
   let applicantAnnualContribution = 0;
   let spouseAnnualContribution = 0;
+  let applicantAnnualFundedOwnContribution = 0;
+  let spouseAnnualFundedOwnContribution = 0;
+  let supportYearCount = 0;
 
   for (let monthIndex = 0; monthIndex < bootstrap.length; monthIndex += 1) {
     const monthlySample = bootstrap[monthIndex];
@@ -2323,7 +2936,19 @@ function projectPath(
     const applicantContribution = adjustInflowsForInflation
       ? applicantBaseContribution * cumulativeInflation
       : applicantBaseContribution;
-    applicantValue = (applicantValue * (1 + monthlyReturn) + applicantContribution) * monthlyFeeFactor;
+    growAvdTaxPool(applicantTaxPool, monthlyReturn, monthlyFeeFactor);
+    const applicantFundedContribution = Math.min(
+      applicantContribution,
+      Math.max(AVD_ELIGIBLE_OWN_CONTRIBUTION_CAP - applicantAnnualFundedOwnContribution, 0),
+    );
+    contributeToAvdTaxPool(
+      applicantTaxPool,
+      applicantContribution,
+      applicantFundedContribution,
+      monthlyFeeFactor,
+    );
+    applicantAnnualFundedOwnContribution += applicantFundedContribution;
+    applicantValue = avdTaxPoolValue(applicantTaxPool);
     const applicantStartsWithdrawal =
       !applicantWithdrawalInitialized &&
       preciseAge(household.applicant.birthdate, nextMonthDate) >=
@@ -2345,13 +2970,14 @@ function projectPath(
     }
     const applicantRequestedWithdrawalNominal =
       applicantMonthlyWithdrawalReal * cumulativeInflation;
-    const applicantPaidWithdrawalNominal = Math.min(
-      applicantValue,
+    const applicantWithdrawal = withdrawFromAvdTaxPool(
+      applicantTaxPool,
       applicantRequestedWithdrawalNominal,
     );
+    const applicantPaidWithdrawalNominal = applicantWithdrawal.paid;
     const applicantWithdrawalShortfallNominal =
       applicantRequestedWithdrawalNominal - applicantPaidWithdrawalNominal;
-    applicantValue -= applicantPaidWithdrawalNominal;
+    applicantValue = avdTaxPoolValue(applicantTaxPool);
     applicantAnnualContribution += applicantContribution;
     householdContributionValue += applicantContribution;
     householdContributionRealValue += applicantContribution / cumulativeInflation;
@@ -2364,7 +2990,19 @@ function projectPath(
       const spouseBaseContribution =
         spouseAgeAtMonth < household.spouse.retirementAge ? household.spouse.monthlyContribution : 0;
       spouseContribution = adjustInflowsForInflation ? spouseBaseContribution * cumulativeInflation : spouseBaseContribution;
-      spouseValue = (spouseValue * (1 + monthlyReturn) + spouseContribution) * monthlyFeeFactor;
+      growAvdTaxPool(spouseTaxPool, monthlyReturn, monthlyFeeFactor);
+      const spouseFundedContribution = Math.min(
+        spouseContribution,
+        Math.max(AVD_ELIGIBLE_OWN_CONTRIBUTION_CAP - spouseAnnualFundedOwnContribution, 0),
+      );
+      contributeToAvdTaxPool(
+        spouseTaxPool,
+        spouseContribution,
+        spouseFundedContribution,
+        monthlyFeeFactor,
+      );
+      spouseAnnualFundedOwnContribution += spouseFundedContribution;
+      spouseValue = avdTaxPoolValue(spouseTaxPool);
       const spouseStartsWithdrawal =
         !spouseWithdrawalInitialized &&
         preciseAge(household.spouse.birthdate, nextMonthDate) >=
@@ -2391,26 +3029,31 @@ function projectPath(
 
     const spouseRequestedWithdrawalNominal =
       spouseMonthlyWithdrawalReal * cumulativeInflation;
-    const spousePaidWithdrawalNominal = Math.min(
-      spouseValue,
+    const spouseWithdrawal = withdrawFromAvdTaxPool(
+      spouseTaxPool,
       spouseRequestedWithdrawalNominal,
     );
+    const spousePaidWithdrawalNominal = spouseWithdrawal.paid;
     const spouseWithdrawalShortfallNominal =
       spouseRequestedWithdrawalNominal - spousePaidWithdrawalNominal;
-    spouseValue -= spousePaidWithdrawalNominal;
+    spouseValue = avdTaxPoolValue(spouseTaxPool);
 
     const requestedWithdrawalNominal =
       applicantRequestedWithdrawalNominal + spouseRequestedWithdrawalNominal;
     const paidWithdrawalNominal =
       applicantPaidWithdrawalNominal + spousePaidWithdrawalNominal;
+    const taxableWithdrawalNominal = applicantWithdrawal.taxable + spouseWithdrawal.taxable;
     const withdrawalShortfallNominal =
       applicantWithdrawalShortfallNominal + spouseWithdrawalShortfallNominal;
     const requestedWithdrawalReal = requestedWithdrawalNominal / cumulativeInflation;
     const paidWithdrawalReal = paidWithdrawalNominal / cumulativeInflation;
+    const taxableWithdrawalReal = taxableWithdrawalNominal / cumulativeInflation;
     const withdrawalShortfallReal = withdrawalShortfallNominal / cumulativeInflation;
 
     latestHouseholdWithdrawalNominal = paidWithdrawalNominal;
     latestHouseholdWithdrawalReal = paidWithdrawalReal;
+    latestHouseholdTaxableWithdrawalNominal = taxableWithdrawalNominal;
+    latestHouseholdTaxableWithdrawalReal = taxableWithdrawalReal;
     cumulativeRequestedWithdrawalNominal += requestedWithdrawalNominal;
     cumulativeRequestedWithdrawalReal += requestedWithdrawalReal;
     cumulativePaidWithdrawalNominal += paidWithdrawalNominal;
@@ -2431,22 +3074,29 @@ function projectPath(
 
     cumulativeInflation *= monthlySample.inflationRatio;
 
-    if ((monthIndex + 1) % 12 === 0) {
-      const yearEndDate = addMonths(now, monthIndex + 1);
-      const yearIndex = (monthIndex + 1) / 12;
-      // Support is modeled as an annual top-up after the year's contributions have been made.
+    if (monthDate.getMonth() === 11) {
+      const yearEndDate = new Date(monthDate.getFullYear(), 11, 31);
+      supportYearCount += 1;
       const support = annualSupportForYear(household, {
         applicantAnnualContribution,
         spouseAnnualContribution,
+        contractStartDate: now,
         yearEndDate,
-        yearIndex,
+        yearIndex: supportYearCount,
       });
       const supportInflationFactor = adjustInflowsForInflation ? cumulativeInflation : 1;
       const applicantSupport = support.applicant * supportInflationFactor;
       const spouseSupport = support.spouse * supportInflationFactor;
+      const applicantDirectSupport = support.applicantDirect * supportInflationFactor;
+      const spouseDirectSupport = support.spouseDirect * supportInflationFactor;
+      const applicantTaxRefund = support.applicantTax * supportInflationFactor;
+      const spouseTaxRefund = support.spouseTax * supportInflationFactor;
+      const householdSupport = applicantSupport + spouseSupport;
 
-      applicantValue += applicantSupport;
-      spouseValue += spouseSupport;
+      creditAvdSupport(applicantTaxPool, applicantDirectSupport, applicantTaxRefund);
+      creditAvdSupport(spouseTaxPool, spouseDirectSupport, spouseTaxRefund);
+      applicantValue = avdTaxPoolValue(applicantTaxPool);
+      spouseValue = avdTaxPoolValue(spouseTaxPool);
       creditWithdrawalRateTrackers(
         applicantWithdrawalRateTrackers,
         applicantSupport,
@@ -2455,9 +3105,21 @@ function projectPath(
         spouseWithdrawalRateTrackers,
         spouseSupport,
       );
-      totalSupport += applicantSupport + spouseSupport;
-      householdInflowValue += applicantSupport + spouseSupport;
-      householdInflowRealValue += (applicantSupport + spouseSupport) / cumulativeInflation;
+      totalSupport += householdSupport;
+      totalSupportReal += householdSupport / cumulativeInflation;
+      if (householdSupport > 0) {
+        supportPaymentYearCount += 1;
+      }
+      householdInflowValue += householdSupport;
+      householdInflowRealValue += householdSupport / cumulativeInflation;
+
+      applicantAnnualContribution = 0;
+      spouseAnnualContribution = 0;
+      applicantAnnualFundedOwnContribution = 0;
+      spouseAnnualFundedOwnContribution = 0;
+    }
+
+    if ((monthIndex + 1) % 12 === 0) {
 
       applicantNominal.push(applicantValue);
       spouseNominal.push(spouseValue);
@@ -2471,9 +3133,8 @@ function projectPath(
       householdInflowReal.push(householdInflowRealValue);
       householdWithdrawalNominal.push(latestHouseholdWithdrawalNominal);
       householdWithdrawalReal.push(latestHouseholdWithdrawalReal);
-
-      applicantAnnualContribution = 0;
-      spouseAnnualContribution = 0;
+      householdTaxableWithdrawalNominal.push(latestHouseholdTaxableWithdrawalNominal);
+      householdTaxableWithdrawalReal.push(latestHouseholdTaxableWithdrawalReal);
     }
 
     const chartBucket = chartBuckets[monthDate.getFullYear() - chartYearStart];
@@ -2502,6 +3163,8 @@ function projectPath(
     householdInflowReal.push(householdInflowRealValue);
     householdWithdrawalNominal.push(latestHouseholdWithdrawalNominal);
     householdWithdrawalReal.push(latestHouseholdWithdrawalReal);
+    householdTaxableWithdrawalNominal.push(latestHouseholdTaxableWithdrawalNominal);
+    householdTaxableWithdrawalReal.push(latestHouseholdTaxableWithdrawalReal);
   }
 
   return {
@@ -2517,8 +3180,16 @@ function projectPath(
     householdInflowReal,
     householdWithdrawalNominal,
     householdWithdrawalReal,
+    householdTaxableWithdrawalNominal,
+    householdTaxableWithdrawalReal,
+    avdTaxPools: {
+      applicant: { ...applicantTaxPool },
+      spouse: { ...spouseTaxPool },
+    },
     chartStats: chartBuckets.map(finalizeChartYearBucket),
     totalSupport,
+    totalSupportReal,
+    supportPaymentYearCount,
     withdrawalOutcome: {
       withdrawalRate: resolvedWithdrawalRate,
       success: firstWithdrawalShortfallDate === null,
@@ -2586,7 +3257,10 @@ function annualSupportForYear(household, context) {
 
   const applicantStarter =
     context.yearIndex === 1 &&
-    preciseAge(household.applicant.birthdate, addMonths(context.yearEndDate, -12)) < 25 &&
+    preciseAge(
+      household.applicant.birthdate,
+      context.contractStartDate ?? addMonths(context.yearEndDate, -12),
+    ) < 25 &&
     context.applicantAnnualContribution > 0
       ? 200
       : 0;
@@ -2594,7 +3268,10 @@ function annualSupportForYear(household, context) {
   const spouseStarter =
     household.spouse &&
     context.yearIndex === 1 &&
-    preciseAge(household.spouse.birthdate, addMonths(context.yearEndDate, -12)) < 25 &&
+    preciseAge(
+      household.spouse.birthdate,
+      context.contractStartDate ?? addMonths(context.yearEndDate, -12),
+    ) < 25 &&
     context.spouseAnnualContribution > 0
       ? 200
       : 0;
@@ -2625,16 +3302,29 @@ function annualSupportForYear(household, context) {
 
   const applicantDirect = applicantBase + applicantStarter + applicantChildSubsidy;
   const spouseDirect = spouseBase + spouseStarter + spouseChildSubsidy;
-  // The simplified tax benefit is modeled as "marginal relief minus direct subsidy", floored at
-  // zero so support is never double-counted as both grant and tax credit.
-  const applicantTax = Math.max(Math.min(context.applicantAnnualContribution, 1800) * household.applicant.incomeRate - applicantDirect, 0);
+  // § 10a compares the tax effect of eligible own contributions plus allowances with the
+  // allowance already received. The UI supplies a marginal-rate approximation rather than a
+  // complete taxable-income return, so we apply that rate to the full deductible amount.
+  const applicantDeductible = Math.min(
+    context.applicantAnnualContribution,
+    AVD_ELIGIBLE_OWN_CONTRIBUTION_CAP,
+  ) + applicantDirect;
+  const applicantTax = Math.max(applicantDeductible * household.applicant.incomeRate - applicantDirect, 0);
   const spouseTax = household.spouse
-    ? Math.max(Math.min(context.spouseAnnualContribution, 1800) * household.spouse.incomeRate - spouseDirect, 0)
+    ? Math.max(
+        (Math.min(context.spouseAnnualContribution, AVD_ELIGIBLE_OWN_CONTRIBUTION_CAP) + spouseDirect) *
+          household.spouse.incomeRate - spouseDirect,
+        0,
+      )
     : 0;
 
   return {
     applicant: applicantDirect + applicantTax,
     spouse: spouseDirect + spouseTax,
+    applicantDirect,
+    spouseDirect,
+    applicantTax,
+    spouseTax,
   };
 }
 
@@ -2849,6 +3539,1423 @@ function markWithdrawalSummaryBusy() {
   elements.withdrawalRate?.setAttribute("aria-busy", "true");
 }
 
+function resolveEtfComparisonConfig(config = {}, now = new Date()) {
+  const currentYear = now.getFullYear();
+  const monthlyContribution = clamp(
+    config.monthlyContribution === undefined
+      ? DEFAULT_ETF_MONTHLY_CONTRIBUTION
+      : Number(config.monthlyContribution) || 0,
+    0,
+    20_000,
+  );
+  const startYear = clamp(
+    Math.round(Number(config.startYear) || currentYear),
+    ETF_HISTORY_START_YEAR,
+    ETF_HISTORY_END_YEAR,
+  );
+  const endYear = clamp(
+    Math.round(Number(config.endYear) || startYear),
+    startYear,
+    ETF_HISTORY_END_YEAR,
+  );
+  const postSavingsMonthlyFlow = clamp(Number(config.postSavingsMonthlyFlow) || 0, -20_000, 20_000);
+  const trancheCount = clamp(
+    Math.round(Number(config.trancheCount) || DEFAULT_ETF_TRANCHE_COUNT),
+    MIN_ETF_TRANCHE_COUNT,
+    MAX_ETF_TRANCHE_COUNT,
+  );
+  return {
+    monthlyContribution,
+    startYear,
+    endYear,
+    postSavingsMonthlyFlow,
+    trancheCount,
+  };
+}
+
+function buildEtfHistoricalPrelude(monthlyHistory, startYear, now = new Date()) {
+  const startDate = new Date(
+    clamp(Math.round(Number(startYear) || now.getFullYear()), ETF_HISTORY_START_YEAR, ETF_HISTORY_END_YEAR),
+    0,
+    1,
+  );
+  const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  if (startDate >= currentMonth) return [];
+
+  const observationsByKey = new Map(monthlyHistory.map((observation) => [observation.key, observation]));
+  const basisRateByYear = new Map();
+  for (const observation of monthlyHistory) {
+    const year = Number(String(observation.key).slice(0, 4));
+    if (Number.isInteger(year) && Number.isFinite(observation.basisRate)) {
+      basisRateByYear.set(year, observation.basisRate);
+    }
+  }
+
+  const prelude = [];
+  for (let monthDate = startDate; monthDate < currentMonth; monthDate = addMonths(monthDate, 1)) {
+    const key = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
+    const observation = observationsByKey.get(key);
+    prelude.push(observation
+      ? { ...observation }
+      : {
+          key,
+          marketReturn: 0,
+          inflationRatio: 1,
+          basisRate: basisRateByYear.get(monthDate.getFullYear()) ?? 0,
+        });
+  }
+  return prelude;
+}
+
+function scaleEtfLots(lots, factor) {
+  for (const lot of lots) {
+    lot.value *= factor;
+    lot.costBasis *= factor;
+    lot.advanceCredit *= factor;
+    lot.pendingAdvanceCredit = (lot.pendingAdvanceCredit ?? 0) * factor;
+    if (lot.yearStartValue !== null) lot.yearStartValue *= factor;
+  }
+}
+
+function calculateEtfTaxYear({
+  grossCapitalIncome,
+  grossNonWithdrawalIncome,
+  lossCarryforward,
+  saverAllowance,
+}) {
+  const taxableBeforeLoss = (Number(grossCapitalIncome) || 0) * EQUITY_FUND_TAXABLE_SHARE;
+  const taxableNonWithdrawalBeforeLoss =
+    (Number(grossNonWithdrawalIncome) || 0) * EQUITY_FUND_TAXABLE_SHARE;
+  const openingLoss = Math.max(Number(lossCarryforward) || 0, 0);
+  const afterLoss = taxableBeforeLoss - openingLoss;
+  const remainingLossCarryforward = Math.max(-afterLoss, 0);
+  const taxableAfterAllowance = Math.max(afterLoss - saverAllowance, 0);
+  const nonWithdrawalAfterLoss = taxableNonWithdrawalBeforeLoss - openingLoss;
+  const nonWithdrawalAfterAllowance = Math.max(nonWithdrawalAfterLoss - saverAllowance, 0);
+  const flatTaxFactor = CAPITAL_GAINS_TAX_RATE * (1 + SOLIDARITY_SURCHARGE_RATE);
+  const totalTax = taxableAfterAllowance * flatTaxFactor;
+  const nonWithdrawalTax = Math.min(
+    Math.max(nonWithdrawalAfterAllowance * flatTaxFactor, 0),
+    totalTax,
+  );
+  return {
+    totalTax,
+    withdrawalTax: Math.max(totalTax - nonWithdrawalTax, 0),
+    portfolioTax: nonWithdrawalTax,
+    remainingLossCarryforward,
+  };
+}
+
+function projectOrdinaryEtfPath({
+  household,
+  monthlyPath,
+  now,
+  retirementDate,
+  adjustInflowsForInflation,
+  config,
+  includeDecisionContribution = false,
+  decisionStartDate = now,
+  realTermsBaseInflation = 1,
+}) {
+  const resolvedConfig = resolveEtfComparisonConfig(config, now);
+  const cashFlowSchedule = [];
+  const baseInflation = Math.max(Number(realTermsBaseInflation) || 1, 1e-12);
+  // All UI amounts are expressed in today's euros. Before today this reverses
+  // the observed inflation; after today it continues indexing them forward.
+  let scheduleInflation = adjustInflowsForInflation ? 1 / baseInflation : 1;
+  for (let monthIndex = 0; monthIndex < monthlyPath.length; monthIndex += 1) {
+    const monthDate = addMonths(now, monthIndex);
+    if (monthDate >= retirementDate) break;
+    const inSavingsWindow = monthDate.getFullYear() >= resolvedConfig.startYear && monthDate.getFullYear() <= resolvedConfig.endYear;
+    const baselineEtfCashFlow = inSavingsWindow
+      ? resolvedConfig.monthlyContribution
+      : monthDate.getFullYear() > resolvedConfig.endYear
+        ? resolvedConfig.postSavingsMonthlyFlow
+        : 0;
+    const decisionHasStarted = monthDate >= decisionStartDate;
+    const applicantDecisionContribution = includeDecisionContribution && decisionHasStarted &&
+      preciseAge(household.applicant.birthdate, monthDate) < household.applicant.retirementAge
+      ? household.applicant.monthlyContribution
+      : 0;
+    const spouseDecisionContribution = includeDecisionContribution && decisionHasStarted && household.spouse &&
+      preciseAge(household.spouse.birthdate, monthDate) < household.spouse.retirementAge
+      ? household.spouse.monthlyContribution
+      : 0;
+    // In the no-AVD alternative, X changes the household's net ETF cash flow.
+    // In particular, X reduces a negative FIRE withdrawal before any lots are
+    // sold instead of being deposited and immediately withdrawn again.
+    const monthlyEtfCashFlow = baselineEtfCashFlow + applicantDecisionContribution + spouseDecisionContribution;
+    const inflationFactor = adjustInflowsForInflation ? scheduleInflation : 1;
+    cashFlowSchedule.push({
+      contribution: Math.max(monthlyEtfCashFlow, 0) * inflationFactor,
+      withdrawal: Math.max(-monthlyEtfCashFlow, 0) * inflationFactor,
+    });
+    scheduleInflation *= monthlyPath[monthIndex].inflationRatio;
+  }
+
+  const totalScheduledContributions = cashFlowSchedule.reduce((sum, flow) => sum + flow.contribution, 0);
+  const contributionPerTranche = totalScheduledContributions / resolvedConfig.trancheCount;
+  const tranches = Array.from({ length: resolvedConfig.trancheCount }, () => []);
+  let contributed = 0;
+  let realContributed = 0;
+  let cumulativeInflation = 1;
+  let advanceAssessments = 0;
+  let advanceTaxPaid = 0;
+  let totalTaxPaid = 0;
+  let preRetirementWithdrawals = 0;
+  let realPreRetirementWithdrawals = 0;
+  let preRetirementWithdrawalTax = 0;
+  let preRetirementWithdrawalShortfall = 0;
+  let realPreRetirementWithdrawalShortfall = 0;
+  let annualRealizedGain = 0;
+  let annualAdvanceIncome = 0;
+  let capitalLossCarryforward = 0;
+  let pendingAdvanceAssessment = 0;
+  let annualOpeningLossCarryforward = 0;
+  let annualAdvanceTaxPrepaid = 0;
+  let lotSequence = 0;
+  const saverAllowance = Math.max(
+    SAVER_ALLOWANCE_SINGLE * (household.spouse ? 2 : 1),
+    0,
+  );
+
+  const adjustPortfolioForTax = (taxAmount, monthDate) => {
+    const valueBeforeTax = tranches.flat().reduce((sum, lot) => sum + lot.value, 0);
+    if (taxAmount > 1e-9 && valueBeforeTax > 0) {
+      scaleEtfLots(tranches.flat(), Math.max(valueBeforeTax - taxAmount, 0) / valueBeforeTax);
+    } else if (taxAmount < -1e-9) {
+      const refund = -taxAmount;
+      const trancheIndex = Math.max(resolvedConfig.trancheCount - 1, 0);
+      tranches[trancheIndex].push({
+        acquiredMonth: monthDate.getMonth(),
+        acquiredSequence: lotSequence++,
+        advanceCredit: 0,
+        pendingAdvanceCredit: 0,
+        costBasis: refund,
+        trancheIndex,
+        value: refund,
+        yearStartValue: null,
+      });
+    }
+  };
+
+  const settleTaxYear = (monthDate) => {
+    const tax = calculateEtfTaxYear({
+      grossCapitalIncome: annualRealizedGain + annualAdvanceIncome,
+      grossNonWithdrawalIncome: annualAdvanceIncome,
+      lossCarryforward: annualOpeningLossCarryforward,
+      saverAllowance,
+    });
+    capitalLossCarryforward = tax.remainingLossCarryforward;
+    preRetirementWithdrawalTax += tax.withdrawalTax;
+    totalTaxPaid += tax.totalTax - annualAdvanceTaxPrepaid;
+    const advanceTaxAdjustment = tax.portfolioTax - annualAdvanceTaxPrepaid;
+    adjustPortfolioForTax(advanceTaxAdjustment, monthDate);
+    advanceTaxPaid += advanceTaxAdjustment;
+    annualRealizedGain = 0;
+    annualAdvanceIncome = 0;
+    annualAdvanceTaxPrepaid = 0;
+    annualOpeningLossCarryforward = capitalLossCarryforward;
+  };
+
+  for (let monthIndex = 0; monthIndex < cashFlowSchedule.length; monthIndex += 1) {
+    const sample = monthlyPath[monthIndex];
+    const monthDate = addMonths(now, monthIndex);
+    const allLots = tranches.flat();
+    if (monthDate.getMonth() === 0) {
+      for (const lot of allLots) {
+        lot.advanceCredit += lot.pendingAdvanceCredit ?? 0;
+        lot.pendingAdvanceCredit = 0;
+        lot.yearStartValue = lot.value;
+      }
+      annualOpeningLossCarryforward = capitalLossCarryforward;
+      annualAdvanceIncome = pendingAdvanceAssessment;
+      const advanceTax = calculateEtfTaxYear({
+        grossCapitalIncome: annualAdvanceIncome,
+        grossNonWithdrawalIncome: annualAdvanceIncome,
+        lossCarryforward: annualOpeningLossCarryforward,
+        saverAllowance,
+      });
+      annualAdvanceTaxPrepaid = advanceTax.totalTax;
+      adjustPortfolioForTax(annualAdvanceTaxPrepaid, monthDate);
+      advanceTaxPaid += annualAdvanceTaxPrepaid;
+      totalTaxPaid += annualAdvanceTaxPrepaid;
+      pendingAdvanceAssessment = 0;
+    }
+    for (const lot of allLots) lot.value *= 1 + sample.marketReturn;
+
+    const monthlyContribution = cashFlowSchedule[monthIndex].contribution;
+    const contributionStart = contributed;
+    const contributionEnd = contributionStart + monthlyContribution;
+    for (let trancheIndex = 0; trancheIndex < resolvedConfig.trancheCount; trancheIndex += 1) {
+      const trancheStart = contributionPerTranche * trancheIndex;
+      const trancheEnd = trancheIndex === resolvedConfig.trancheCount - 1
+        ? Number.POSITIVE_INFINITY
+        : contributionPerTranche * (trancheIndex + 1);
+      const amount = Math.max(
+        Math.min(contributionEnd, trancheEnd) - Math.max(contributionStart, trancheStart),
+        0,
+      );
+      if (amount <= 1e-9) continue;
+      tranches[trancheIndex].push({
+        acquiredMonth: monthDate.getMonth(),
+        acquiredSequence: lotSequence++,
+        advanceCredit: 0,
+        pendingAdvanceCredit: 0,
+        costBasis: amount,
+        trancheIndex,
+        value: amount,
+        yearStartValue: null,
+      });
+      realContributed += amount * baseInflation / Math.max(cumulativeInflation, 1e-12);
+    }
+    contributed = contributionEnd;
+
+    const withdrawal = withdrawEtfLots(tranches.flat(), cashFlowSchedule[monthIndex].withdrawal);
+    preRetirementWithdrawals += withdrawal.proceeds;
+    realPreRetirementWithdrawals += withdrawal.proceeds * baseInflation / Math.max(cumulativeInflation, 1e-12);
+    preRetirementWithdrawalShortfall += withdrawal.shortfall;
+    realPreRetirementWithdrawalShortfall += withdrawal.shortfall * baseInflation / Math.max(cumulativeInflation, 1e-12);
+    annualRealizedGain += withdrawal.gain;
+
+    if (monthDate.getMonth() === 11) {
+      let annualAdvanceAssessment = 0;
+      for (const lot of tranches.flat()) {
+        const referenceValue = lot.yearStartValue ?? lot.costBasis;
+        const ownershipFraction = lot.yearStartValue === null ? (12 - lot.acquiredMonth) / 12 : 1;
+        const baseYield = referenceValue * Math.max(Number(sample.basisRate) || 0, 0) * 0.7 * ownershipFraction;
+        const annualAppreciation = Math.max(lot.value - referenceValue, 0);
+        const assessment = Math.max(Math.min(baseYield, annualAppreciation), 0);
+        lot.pendingAdvanceCredit += assessment;
+        annualAdvanceAssessment += assessment;
+      }
+      advanceAssessments += annualAdvanceAssessment;
+      pendingAdvanceAssessment += annualAdvanceAssessment;
+      settleTaxYear(monthDate);
+    }
+    cumulativeInflation *= sample.inflationRatio;
+  }
+
+  if (Math.abs(annualRealizedGain) > 1e-9 || annualAdvanceIncome > 1e-9) {
+    const lastMonthDate = addMonths(now, Math.max(cashFlowSchedule.length - 1, 0));
+    settleTaxYear(lastMonthDate);
+  }
+
+  const lots = tranches.flat();
+  const remainingCostBasis = lots.reduce((sum, lot) => sum + lot.costBasis, 0);
+  return {
+    advanceAssessments,
+    advanceTaxPaid,
+    totalTaxPaid,
+    capitalLossCarryforward,
+    pendingAdvanceAssessment,
+    contributions: contributed,
+    realContributions: realContributed,
+    cumulativeInflation,
+    lots,
+    preRetirementWithdrawals,
+    realPreRetirementWithdrawals,
+    preRetirementWithdrawalTax,
+    preRetirementNetWithdrawals: Math.max(preRetirementWithdrawals - preRetirementWithdrawalTax, 0),
+    preRetirementWithdrawalShortfall,
+    realPreRetirementWithdrawalShortfall,
+    remainingCostBasis,
+    realTermsBaseInflation: baseInflation,
+    value: lots.reduce((sum, lot) => sum + lot.value, 0),
+  };
+}
+
+function scaledEtfState(state, realTerms) {
+  const factor = realTerms
+    ? Math.max(Number(state.realTermsBaseInflation) || 1, 1e-12) /
+      Math.max(state.cumulativeInflation, 1e-12)
+    : 1;
+  return {
+    advanceAssessments: state.advanceAssessments * factor,
+    advanceTaxPaid: state.advanceTaxPaid * factor,
+    totalTaxPaid: state.totalTaxPaid * factor,
+    capitalLossCarryforward: state.capitalLossCarryforward * factor,
+    pendingAdvanceAssessment: state.pendingAdvanceAssessment * factor,
+    contributions: realTerms
+      ? state.realContributions ?? state.contributions * factor
+      : state.contributions,
+    lots: state.lots.map((lot) => ({
+      ...lot,
+      advanceCredit: lot.advanceCredit * factor,
+      pendingAdvanceCredit: (lot.pendingAdvanceCredit ?? 0) * factor,
+      costBasis: lot.costBasis * factor,
+      value: lot.value * factor,
+      yearStartValue: lot.yearStartValue === null ? null : lot.yearStartValue * factor,
+    })),
+    value: state.value * factor,
+  };
+}
+
+function withdrawEtfLots(lots, requestedAmount) {
+  const ordered = lots.filter((lot) => lot.value > 1e-9).sort((a, b) =>
+    b.trancheIndex - a.trancheIndex || a.acquiredSequence - b.acquiredSequence,
+  );
+  let remaining = Math.max(Number(requestedAmount) || 0, 0);
+  let proceeds = 0;
+  let gain = 0;
+  for (const lot of ordered) {
+    if (remaining <= 1e-9) break;
+    const sold = Math.min(lot.value, remaining);
+    const share = sold / lot.value;
+    const soldBasis = lot.costBasis * share;
+    const soldAdvanceCredit = lot.advanceCredit * share;
+    const soldPendingAdvanceCredit = (lot.pendingAdvanceCredit ?? 0) * share;
+    proceeds += sold;
+    gain += sold - soldBasis - soldAdvanceCredit - soldPendingAdvanceCredit;
+    lot.value -= sold;
+    lot.costBasis -= soldBasis;
+    lot.advanceCredit -= soldAdvanceCredit;
+    lot.pendingAdvanceCredit = Math.max((lot.pendingAdvanceCredit ?? 0) - soldPendingAdvanceCredit, 0);
+    if (lot.yearStartValue !== null) lot.yearStartValue *= 1 - share;
+    remaining -= sold;
+  }
+  return { gain, proceeds, shortfall: remaining };
+}
+
+function realizeEtfWithdrawal(lots, requestedAmount) {
+  const amount = Math.max(Number(requestedAmount) || 0, 0);
+  const ordered = lots.map((lot) => ({ ...lot })).sort((a, b) =>
+    b.trancheIndex - a.trancheIndex || a.acquiredSequence - b.acquiredSequence,
+  );
+  let remaining = amount;
+  let proceeds = 0;
+  let gain = 0;
+  for (const lot of ordered) {
+    if (remaining <= 1e-9 || lot.value <= 0) break;
+    const sold = Math.min(lot.value, remaining);
+    const share = sold / lot.value;
+    proceeds += sold;
+    gain += sold - lot.costBasis * share - (lot.advanceCredit + (lot.pendingAdvanceCredit ?? 0)) * share;
+    remaining -= sold;
+  }
+  if (remaining > 1e-9) {
+    const totalValue = ordered.reduce((sum, lot) => sum + lot.value, 0);
+    const totalDeferredGain = ordered.reduce(
+      (sum, lot) => sum + lot.value - lot.costBasis - lot.advanceCredit - (lot.pendingAdvanceCredit ?? 0),
+      0,
+    );
+    const fallbackGainShare = totalValue > 0 ? clamp(totalDeferredGain / totalValue, 0, 1) : 0;
+    proceeds += remaining;
+    gain += remaining * fallbackGainShare;
+  }
+  return { gain, proceeds };
+}
+
+function incomeTax2026(taxableIncome, jointlyAssessed = false) {
+  const divisor = jointlyAssessed ? 2 : 1;
+  const x = Math.floor(Math.max(Number(taxableIncome) || 0, 0) / divisor);
+  let tax = 0;
+  if (x <= 12_348) {
+    tax = 0;
+  } else if (x <= 17_799) {
+    const y = (x - 12_348) / 10_000;
+    tax = (914.51 * y + 1_400) * y;
+  } else if (x <= 69_878) {
+    const z = (x - 17_799) / 10_000;
+    tax = (173.1 * z + 2_397) * z + 1_034.87;
+  } else if (x <= 277_825) {
+    tax = 0.42 * x - 11_135.63;
+  } else {
+    tax = 0.45 * x - 19_470.38;
+  }
+  return Math.max(Math.floor(tax) * divisor, 0);
+}
+
+function statutoryPensionTaxableShare(retirementYear) {
+  const year = Math.round(Number(retirementYear) || 2026);
+  if (year <= 2026) {
+    return 0.84;
+  }
+  return Math.min(0.84 + (year - 2026) * 0.005, 1);
+}
+
+function kvdrCareInsuranceRateForHousehold(children = [], retirementDate = new Date()) {
+  if (!Array.isArray(children) || children.length === 0) {
+    return KVDR_CARE_INSURANCE_CHILDLESS_RATE;
+  }
+  const childrenUnder25 = children.filter(
+    (birthdate) => birthdate instanceof Date && preciseAge(birthdate, retirementDate) < 25,
+  ).length;
+  const discountedChildren = clamp(childrenUnder25 - 1, 0, 4);
+  return KVDR_CARE_INSURANCE_PARENT_RATE -
+    discountedChildren * KVDR_CARE_INSURANCE_CHILD_DISCOUNT;
+}
+
+function calculateKvdrContributions({
+  pensionAnnual = 0,
+  jointlyAssessed = false,
+  careInsuranceRate = KVDR_CARE_INSURANCE_PARENT_RATE,
+} = {}) {
+  const pensionGross = Math.max(Number(pensionAnnual) || 0, 0);
+  const insuredPersonCount = jointlyAssessed ? 2 : 1;
+  const contributionBase = Math.min(
+    pensionGross,
+    KVDR_ANNUAL_CONTRIBUTION_CEILING_2026 * insuredPersonCount,
+  );
+  const healthInsuranceRate =
+    (KVDR_GENERAL_HEALTH_INSURANCE_RATE_2026 + KVDR_AVERAGE_ADDITIONAL_RATE_2026) *
+    KVDR_PENSIONER_HEALTH_SHARE;
+  const resolvedCareInsuranceRate = clamp(
+    Number(careInsuranceRate) || KVDR_CARE_INSURANCE_PARENT_RATE,
+    0,
+    1,
+  );
+  const healthInsurance = contributionBase * healthInsuranceRate;
+  const careInsurance = contributionBase * resolvedCareInsuranceRate;
+  const total = healthInsurance + careInsurance;
+  return {
+    assumedKvdr: true,
+    contributionBase,
+    healthInsurance,
+    careInsurance,
+    total,
+    deductible: total,
+    healthInsuranceRate,
+    careInsuranceRate: resolvedCareInsuranceRate,
+    annualContributionCeilingPerPerson: KVDR_ANNUAL_CONTRIBUTION_CEILING_2026,
+  };
+}
+
+function taxableCapitalIncome(grossEtfWithdrawal, gainShare, saverAllowance) {
+  const taxableGains = Math.max(grossEtfWithdrawal, 0) * clamp(gainShare, 0, 1) * EQUITY_FUND_TAXABLE_SHARE;
+  return Math.max(taxableGains - saverAllowance, 0);
+}
+
+function taxableCapitalGain(capitalGain, saverAllowance, lossCarryforward = 0) {
+  return Math.max(
+    (Number(capitalGain) || 0) * EQUITY_FUND_TAXABLE_SHARE -
+      Math.max(Number(lossCarryforward) || 0, 0) - saverAllowance,
+    0,
+  );
+}
+
+function solidaritySurcharge2026(incomeTax, jointlyAssessed = false) {
+  const assessmentBase = Math.max(Number(incomeTax) || 0, 0);
+  const exemption = SOLIDARITY_SURCHARGE_EXEMPTION_SINGLE * (jointlyAssessed ? 2 : 1);
+  if (assessmentBase <= exemption) {
+    return 0;
+  }
+  return Math.max(
+    Math.min(
+      assessmentBase * SOLIDARITY_SURCHARGE_RATE,
+      (assessmentBase - exemption) * SOLIDARITY_SURCHARGE_MITIGATION_RATE,
+    ),
+    0,
+  );
+}
+
+function ordinaryIncomeTaxWithSurcharge(taxableIncome, jointlyAssessed = false) {
+  const incomeTax = incomeTax2026(taxableIncome, jointlyAssessed);
+  return incomeTax + solidaritySurcharge2026(incomeTax, jointlyAssessed);
+}
+
+function favorableCapitalIncomeTax({
+  ordinaryTaxableIncome,
+  capitalGain,
+  grossEtfWithdrawal,
+  gainShare,
+  saverAllowance,
+  capitalLossCarryforward = 0,
+  jointlyAssessed = false,
+}) {
+  const capitalIncome = capitalGain === undefined
+    ? taxableCapitalIncome(grossEtfWithdrawal, gainShare, saverAllowance)
+    : taxableCapitalGain(capitalGain, saverAllowance, capitalLossCarryforward);
+  const ordinaryTax = ordinaryIncomeTaxWithSurcharge(ordinaryTaxableIncome, jointlyAssessed);
+  const flatCapitalTax = capitalIncome * CAPITAL_GAINS_TAX_RATE * (1 + SOLIDARITY_SURCHARGE_RATE);
+  const flatTotalTax = ordinaryTax + flatCapitalTax;
+  const tariffTotalTax = ordinaryIncomeTaxWithSurcharge(
+    ordinaryTaxableIncome + capitalIncome,
+    jointlyAssessed,
+  );
+  const useTariff = tariffTotalTax < flatTotalTax;
+  return {
+    capitalIncome,
+    method: useTariff ? "tariff" : "flat",
+    totalTax: useTariff ? tariffTotalTax : flatTotalTax,
+  };
+}
+
+function compareNetWithdrawals({
+  grossWithdrawal,
+  retirementValue,
+  etfGrossWithdrawal,
+  etfRetirementValue,
+  etfLots,
+  pensionAnnual = 0,
+  parallelEtfAnnual = 0,
+  etfGainShare = 0.5,
+  retirementYear = 2026,
+  jointlyAssessed = false,
+  kvdrCareInsuranceRate = KVDR_CARE_INSURANCE_PARENT_RATE,
+} = {}) {
+  const gross = Math.max(Number(grossWithdrawal) || 0, 0);
+  const portfolio = Math.max(Number(retirementValue) || 0, 0);
+  const etfPortfolio = etfRetirementValue === undefined
+    ? portfolio
+    : Math.max(Number(etfRetirementValue) || 0, 0);
+  const etfGross = etfGrossWithdrawal === undefined
+    ? gross
+    : Math.max(Number(etfGrossWithdrawal) || 0, 0);
+  const pensionGross = Math.max(Number(pensionAnnual) || 0, 0);
+  const parallelEtfGross = Math.max(Number(parallelEtfAnnual) || 0, 0);
+  const kvdr = calculateKvdrContributions({
+    pensionAnnual: pensionGross,
+    jointlyAssessed,
+    careInsuranceRate: kvdrCareInsuranceRate,
+  });
+  const pensionExpenseAllowance = jointlyAssessed ? PENSION_EXPENSE_ALLOWANCE * 2 : PENSION_EXPENSE_ALLOWANCE;
+  const pensionTaxableBeforeKvdr = Math.max(
+    pensionGross * statutoryPensionTaxableShare(retirementYear) - pensionExpenseAllowance,
+    0,
+  );
+  const ordinaryTaxableIncome = (additionalOrdinaryIncome = 0) => Math.max(
+    pensionTaxableBeforeKvdr + Math.max(Number(additionalOrdinaryIncome) || 0, 0) -
+      kvdr.deductible,
+    0,
+  );
+  const pensionTaxable = ordinaryTaxableIncome();
+  const allowance = SAVER_ALLOWANCE_SINGLE * (jointlyAssessed ? 2 : 1);
+  const parallelGain = Array.isArray(etfLots)
+    ? realizeEtfWithdrawal(etfLots, parallelEtfGross).gain
+    : parallelEtfGross * clamp(etfGainShare, 0, 1);
+  const combinedEtfGain = Array.isArray(etfLots)
+    ? realizeEtfWithdrawal(etfLots, parallelEtfGross + etfGross).gain
+    : (parallelEtfGross + etfGross) * clamp(etfGainShare, 0, 1);
+  const baselineScenario = favorableCapitalIncomeTax({
+    ordinaryTaxableIncome: pensionTaxable,
+    capitalGain: parallelGain,
+    saverAllowance: allowance,
+    jointlyAssessed,
+  });
+  const pensionOnlyScenario = favorableCapitalIncomeTax({
+    ordinaryTaxableIncome: pensionTaxable,
+    capitalGain: 0,
+    saverAllowance: allowance,
+    jointlyAssessed,
+  });
+  const avdScenario = favorableCapitalIncomeTax({
+    ordinaryTaxableIncome: ordinaryTaxableIncome(gross),
+    capitalGain: parallelGain,
+    saverAllowance: allowance,
+    jointlyAssessed,
+  });
+  const etfScenario = favorableCapitalIncomeTax({
+    ordinaryTaxableIncome: pensionTaxable,
+    capitalGain: combinedEtfGain,
+    saverAllowance: allowance,
+    jointlyAssessed,
+  });
+  const avdTax = Math.max(avdScenario.totalTax - baselineScenario.totalTax, 0);
+  const etfTax = Math.max(etfScenario.totalTax - baselineScenario.totalTax, 0);
+  const avdNet = Math.max(gross - avdTax, 0);
+  const etfNet = Math.max(etfGross - etfTax, 0);
+  const avdTotalGrossIncome = pensionGross + parallelEtfGross + gross;
+  const etfTotalGrossIncome = pensionGross + parallelEtfGross + etfGross;
+  const pensionNetIncome = Math.max(
+    pensionGross - pensionOnlyScenario.totalTax - kvdr.total,
+    0,
+  );
+  const baselineTotalNetIncome = Math.max(
+    pensionGross + parallelEtfGross - baselineScenario.totalTax - kvdr.total,
+    0,
+  );
+  const parallelEtfNetIncome = Math.max(baselineTotalNetIncome - pensionNetIncome, 0);
+  const avdTotalNetIncome = Math.max(
+    avdTotalGrossIncome - avdScenario.totalTax - kvdr.total,
+    0,
+  );
+  const etfTotalNetIncome = Math.max(
+    etfTotalGrossIncome - etfScenario.totalTax - kvdr.total,
+    0,
+  );
+
+  return {
+    avdNet,
+    avdTax,
+    avdNetRate: portfolio > 0 ? avdNet / portfolio : 0,
+    etfNet,
+    etfTax,
+    etfTaxMethod: etfScenario.method,
+    etfNetRate: etfPortfolio > 0 ? etfNet / etfPortfolio : 0,
+    avdTotalNetIncome,
+    avdTotalTax: avdScenario.totalTax,
+    etfTotalNetIncome,
+    etfTotalTax: etfScenario.totalTax,
+    pensionGross,
+    pensionNetIncome,
+    baselineEtfGrossWithdrawal: parallelEtfGross,
+    parallelEtfNetIncome,
+    avdTotalGrossIncome,
+    etfTotalGrossIncome,
+    totalGrossIncome: avdTotalGrossIncome,
+    grossWithdrawal: gross,
+    etfGrossWithdrawal: etfGross,
+    grossWithdrawalRate: portfolio > 0 ? gross / portfolio : 0,
+    etfGrossWithdrawalRate: etfPortfolio > 0 ? etfGross / etfPortfolio : 0,
+    parallelCapitalGain: parallelGain,
+    combinedEtfCapitalGain: combinedEtfGain,
+    pensionTaxable,
+    pensionTaxableBeforeKvdr,
+    assumedKvdr: true,
+    kvdr,
+    kvdrContributionBase: kvdr.contributionBase,
+    kvdrHealthInsurance: kvdr.healthInsurance,
+    kvdrCareInsurance: kvdr.careInsurance,
+    kvdrTotalContributions: kvdr.total,
+    kvdrDeductibleContributions: kvdr.deductible,
+  };
+}
+
+function compareDecisionWithdrawals({
+  avdGrossWithdrawal,
+  avdTaxableWithdrawal,
+  avdRetirementValue,
+  commonAvdGrossWithdrawal = 0,
+  commonAvdTaxableWithdrawal = 0,
+  commonAvdRetirementValue = 0,
+  baselineEtfGrossWithdrawal,
+  baselineEtfLots,
+  combinedEtfGrossWithdrawal,
+  combinedEtfLots,
+  incrementalEtfValue,
+  baselineEtfPendingAdvanceAssessment = 0,
+  combinedEtfPendingAdvanceAssessment = 0,
+  baselineEtfLossCarryforward = 0,
+  combinedEtfLossCarryforward = 0,
+  pensionAnnual = 0,
+  retirementYear = 2026,
+  jointlyAssessed = false,
+  kvdrCareInsuranceRate = KVDR_CARE_INSURANCE_PARENT_RATE,
+} = {}) {
+  const avdGross = Math.max(Number(avdGrossWithdrawal) || 0, 0);
+  const avdTaxable = avdTaxableWithdrawal === undefined
+    ? avdGross
+    : clamp(Number(avdTaxableWithdrawal) || 0, 0, avdGross);
+  const commonAvdGross = Math.max(Number(commonAvdGrossWithdrawal) || 0, 0);
+  const commonAvdTaxable = clamp(
+    Number(commonAvdTaxableWithdrawal) || 0,
+    0,
+    commonAvdGross,
+  );
+  const avdValue = Math.max(Number(avdRetirementValue) || 0, 0) +
+    Math.max(Number(commonAvdRetirementValue) || 0, 0);
+  const baselineGross = Math.max(Number(baselineEtfGrossWithdrawal) || 0, 0);
+  const combinedGross = Math.max(Number(combinedEtfGrossWithdrawal) || 0, baselineGross);
+  const etfDecisionGross = Math.max(combinedGross - baselineGross, 0);
+  const etfDecisionValue = Math.max(Number(incrementalEtfValue) || 0, 0);
+  const pensionGross = Math.max(Number(pensionAnnual) || 0, 0);
+  const kvdr = calculateKvdrContributions({
+    pensionAnnual: pensionGross,
+    jointlyAssessed,
+    careInsuranceRate: kvdrCareInsuranceRate,
+  });
+  const pensionExpenseAllowance = jointlyAssessed ? PENSION_EXPENSE_ALLOWANCE * 2 : PENSION_EXPENSE_ALLOWANCE;
+  const pensionTaxableBeforeKvdr = Math.max(
+    pensionGross * statutoryPensionTaxableShare(retirementYear) - pensionExpenseAllowance,
+    0,
+  );
+  const ordinaryTaxableIncome = (additionalOrdinaryIncome = 0) => Math.max(
+    pensionTaxableBeforeKvdr + Math.max(Number(additionalOrdinaryIncome) || 0, 0) -
+      kvdr.deductible,
+    0,
+  );
+  const pensionTaxable = ordinaryTaxableIncome();
+  const allowance = SAVER_ALLOWANCE_SINGLE * (jointlyAssessed ? 2 : 1);
+  const baselineOrdinaryTaxableIncome = ordinaryTaxableIncome(commonAvdTaxable);
+  const baselineGain = realizeEtfWithdrawal(baselineEtfLots ?? [], baselineGross).gain +
+    Math.max(Number(baselineEtfPendingAdvanceAssessment) || 0, 0);
+  const combinedGain = realizeEtfWithdrawal(combinedEtfLots ?? [], combinedGross).gain +
+    Math.max(Number(combinedEtfPendingAdvanceAssessment) || 0, 0);
+  const pensionOnlyScenario = favorableCapitalIncomeTax({
+    ordinaryTaxableIncome: pensionTaxable,
+    capitalGain: 0,
+    saverAllowance: allowance,
+    jointlyAssessed,
+  });
+  const baselineScenario = favorableCapitalIncomeTax({
+    ordinaryTaxableIncome: baselineOrdinaryTaxableIncome,
+    capitalGain: baselineGain,
+    capitalLossCarryforward: baselineEtfLossCarryforward,
+    saverAllowance: allowance,
+    jointlyAssessed,
+  });
+  const avdScenario = favorableCapitalIncomeTax({
+    ordinaryTaxableIncome: ordinaryTaxableIncome(commonAvdTaxable + avdTaxable),
+    capitalGain: baselineGain,
+    capitalLossCarryforward: baselineEtfLossCarryforward,
+    saverAllowance: allowance,
+    jointlyAssessed,
+  });
+  const etfScenario = favorableCapitalIncomeTax({
+    ordinaryTaxableIncome: baselineOrdinaryTaxableIncome,
+    capitalGain: combinedGain,
+    capitalLossCarryforward: combinedEtfLossCarryforward,
+    saverAllowance: allowance,
+    jointlyAssessed,
+  });
+  const pensionNetIncome = Math.max(
+    pensionGross - pensionOnlyScenario.totalTax - kvdr.total,
+    0,
+  );
+  const baselineTotalNetIncome = Math.max(
+    pensionGross + baselineGross + commonAvdGross - baselineScenario.totalTax - kvdr.total,
+    0,
+  );
+  const baselineEtfNetIncome = Math.max(baselineTotalNetIncome - pensionNetIncome, 0);
+  const avdTotalGrossIncome = pensionGross + baselineGross + commonAvdGross + avdGross;
+  const etfTotalGrossIncome = pensionGross + combinedGross + commonAvdGross;
+  const avdTotalNetIncome = Math.max(
+    avdTotalGrossIncome - avdScenario.totalTax - kvdr.total,
+    0,
+  );
+  const etfTotalNetIncome = Math.max(
+    etfTotalGrossIncome - etfScenario.totalTax - kvdr.total,
+    0,
+  );
+  const avdNet = avdTotalNetIncome - baselineTotalNetIncome;
+  const etfNet = etfTotalNetIncome - baselineTotalNetIncome;
+
+  return {
+    avdNet,
+    avdTax: avdScenario.totalTax - baselineScenario.totalTax,
+    avdNetRate: avdValue > 0 ? avdNet / avdValue : 0,
+    etfNet,
+    etfTax: etfScenario.totalTax - baselineScenario.totalTax,
+    etfTaxMethod: etfScenario.method,
+    etfNetRate: etfDecisionValue > 0 ? etfNet / etfDecisionValue : 0,
+    avdTotalNetIncome,
+    avdTotalTax: avdScenario.totalTax,
+    etfTotalNetIncome,
+    etfTotalTax: etfScenario.totalTax,
+    pensionGross,
+    pensionNetIncome,
+    baselineEtfNetIncome,
+    parallelEtfNetIncome: baselineEtfNetIncome,
+    avdTotalGrossIncome,
+    etfTotalGrossIncome,
+    grossWithdrawal: commonAvdGross + avdGross,
+    avdTaxableWithdrawal: commonAvdTaxable + avdTaxable,
+    etfGrossWithdrawal: commonAvdGross + etfDecisionGross,
+    commonAvdGrossWithdrawal: commonAvdGross,
+    commonAvdTaxableWithdrawal: commonAvdTaxable,
+    grossWithdrawalRate: avdValue > 0 ? avdGross / avdValue : 0,
+    etfGrossWithdrawalRate: etfDecisionValue > 0 ? etfDecisionGross / etfDecisionValue : 0,
+    avdAdvantage: avdNet - etfNet,
+    baselineEtfGrossWithdrawal: baselineGross,
+    combinedEtfGrossWithdrawal: combinedGross,
+    baselineCapitalGain: baselineGain,
+    combinedEtfCapitalGain: combinedGain,
+    pensionTaxable,
+    pensionTaxableBeforeKvdr,
+    assumedKvdr: true,
+    kvdr,
+    kvdrContributionBase: kvdr.contributionBase,
+    kvdrHealthInsurance: kvdr.healthInsurance,
+    kvdrCareInsurance: kvdr.careInsurance,
+    kvdrTotalContributions: kvdr.total,
+    kvdrDeductibleContributions: kvdr.deductible,
+  };
+}
+
+function setResultMode(mode) {
+  uiState.resultMode = mode === "comparison" ? "comparison" : "projection";
+  syncResultMode();
+  saveSession();
+  if (uiState.resultMode === "comparison") {
+    renderTaxComparison(latestChartState);
+  }
+}
+
+function syncResultMode() {
+  const isComparison = uiState.resultMode === "comparison";
+  elements.projectionView?.classList.toggle("hidden", isComparison);
+  elements.comparisonView?.classList.toggle("hidden", !isComparison);
+  elements.projectionMode?.classList.toggle("is-active", !isComparison);
+  elements.comparisonMode?.classList.toggle("is-active", isComparison);
+  elements.projectionMode?.setAttribute("aria-pressed", String(!isComparison));
+  elements.comparisonMode?.setAttribute("aria-pressed", String(isComparison));
+}
+
+function resolveMonthlyPension({ mode, monthly, points } = {}) {
+  if (mode === PENSION_INPUT_MODE_POINTS) {
+    return clamp(Number(points) || 0, 0, 200) * CURRENT_PENSION_POINT_VALUE;
+  }
+  return clamp(Number(monthly) || 0, 0, 20_000);
+}
+
+function syncPensionInputMode() {
+  if (!elements.pensionModeMonthly) return;
+  const usesPoints = uiState.pensionInputMode === PENSION_INPUT_MODE_POINTS;
+  elements.pensionModeMonthly.setAttribute("aria-pressed", String(!usesPoints));
+  elements.pensionModePoints.setAttribute("aria-pressed", String(usesPoints));
+  elements.pensionMonthlyField.classList.toggle("hidden", usesPoints);
+  elements.pensionPointsField.classList.toggle("hidden", !usesPoints);
+  elements.pensionPointsConversion.classList.toggle("hidden", !usesPoints);
+  const monthlyAmount = resolveMonthlyPension({
+    mode: PENSION_INPUT_MODE_POINTS,
+    points: elements.comparisonPensionPoints.value,
+  });
+  elements.pensionPointsConversion.textContent = t("comparison.pensionPointsConversion", {
+    amount: formatCurrency(monthlyAmount),
+  });
+}
+
+function setPensionInputMode(mode) {
+  const nextMode = mode === PENSION_INPUT_MODE_POINTS
+    ? PENSION_INPUT_MODE_POINTS
+    : PENSION_INPUT_MODE_MONTHLY;
+  if (nextMode === uiState.pensionInputMode) return;
+  if (nextMode === PENSION_INPUT_MODE_POINTS) {
+    elements.comparisonPensionPoints.value = (
+      clamp(Number(elements.comparisonPension.value) || 0, 0, 20_000) /
+      CURRENT_PENSION_POINT_VALUE
+    ).toFixed(2);
+  } else {
+    elements.comparisonPension.value = resolveMonthlyPension({
+      mode: PENSION_INPUT_MODE_POINTS,
+      points: elements.comparisonPensionPoints.value,
+    }).toFixed(2);
+  }
+  uiState.pensionInputMode = nextMode;
+  syncPensionInputMode();
+  saveSession();
+  renderTaxComparison(latestChartState);
+}
+
+function comparisonInputs() {
+  return {
+    pensionMonthly: resolveMonthlyPension({
+      mode: uiState.pensionInputMode,
+      monthly: elements.comparisonPension?.value,
+      points: elements.comparisonPensionPoints?.value,
+    }),
+  };
+}
+
+function representativeEtfState(result) {
+  const realTerms = uiState.adjustInflation;
+  const seriesType = realTerms ? "real" : "nominal";
+  const targetValue = result.etfComparison?.[seriesType]?.value?.median ?? 0;
+  const paths = result.etfComparison?.paths ?? [];
+  if (paths.length === 0) {
+    return { advanceAssessments: 0, advanceTaxPaid: 0, contributions: 0, lots: [], value: 0 };
+  }
+  const closest = paths.reduce((best, path) => {
+    const value = realTerms
+      ? path.value * Math.max(Number(path.realTermsBaseInflation) || 1, 1e-12) /
+        Math.max(path.cumulativeInflation, 1e-12)
+      : path.value;
+    const bestValue = realTerms
+      ? best.value * Math.max(Number(best.realTermsBaseInflation) || 1, 1e-12) /
+        Math.max(best.cumulativeInflation, 1e-12)
+      : best.value;
+    return Math.abs(value - targetValue) < Math.abs(bestValue - targetValue) ? path : best;
+  });
+  return scaledEtfState(closest, realTerms);
+}
+
+function compareSimulationResult(result, { pensionMonthly = 0, terms = "real" } = {}) {
+  const realTerms = terms !== "nominal";
+  const retirementPoint = result.yearlyStats[result.retirementYear] ?? result.yearlyStats[result.preRetirementYear];
+  const comparisons = (result.comparisonPaths ?? []).map((path) => {
+    const baselineEtf = scaledEtfState(path.baselineEtf, realTerms);
+    const alternativeEtf = scaledEtfState(path.alternativeEtf, realTerms);
+    const avdValue = realTerms ? path.avdRealValue : path.avdNominalValue;
+    const avdWithdrawal = realTerms ? path.avdRealWithdrawal : path.avdNominalWithdrawal;
+    const avdTaxableWithdrawal = realTerms
+      ? path.avdRealTaxableWithdrawal
+      : path.avdNominalTaxableWithdrawal;
+    const commonAvdValue = realTerms
+      ? path.commonAvdRealValue
+      : path.commonAvdNominalValue;
+    const commonAvdWithdrawal = realTerms
+      ? path.commonAvdRealWithdrawal
+      : path.commonAvdNominalWithdrawal;
+    const commonAvdTaxableWithdrawal = realTerms
+      ? path.commonAvdRealTaxableWithdrawal
+      : path.commonAvdNominalTaxableWithdrawal;
+    return {
+      ...compareDecisionWithdrawals({
+        avdGrossWithdrawal: avdWithdrawal,
+        avdTaxableWithdrawal,
+        avdRetirementValue: avdValue,
+        commonAvdGrossWithdrawal: commonAvdWithdrawal,
+        commonAvdTaxableWithdrawal,
+        commonAvdRetirementValue: commonAvdValue,
+        baselineEtfGrossWithdrawal: baselineEtf.value * result.withdrawalRate,
+        baselineEtfLots: baselineEtf.lots,
+        combinedEtfGrossWithdrawal: alternativeEtf.value * result.withdrawalRate,
+        combinedEtfLots: alternativeEtf.lots,
+        incrementalEtfValue: Math.max(alternativeEtf.value - baselineEtf.value, 0),
+        baselineEtfPendingAdvanceAssessment: baselineEtf.pendingAdvanceAssessment,
+        combinedEtfPendingAdvanceAssessment: alternativeEtf.pendingAdvanceAssessment,
+        baselineEtfLossCarryforward: baselineEtf.capitalLossCarryforward,
+        combinedEtfLossCarryforward: alternativeEtf.capitalLossCarryforward,
+        pensionAnnual: pensionMonthly * 12,
+        retirementYear: retirementPoint?.pointDate?.getFullYear?.() ?? 2026,
+        jointlyAssessed: result.hasSpouse,
+        kvdrCareInsuranceRate: result.kvdrCareInsuranceRate,
+      }),
+      pathRealAnnualReturn: path.pathRealAnnualReturn,
+    };
+  });
+  if (comparisons.length === 0) {
+    const comparison = compareDecisionWithdrawals({ pensionAnnual: pensionMonthly * 12 });
+    return { ...comparison, advantageDistribution: buildAdvantageDistribution([comparison]) };
+  }
+  const summarized = averageComparison(comparisons);
+  const closestMethodSample = comparisons.reduce((best, comparison) =>
+    Math.abs(comparison.etfTotalTax - summarized.etfTotalTax) <
+    Math.abs(best.etfTotalTax - summarized.etfTotalTax)
+      ? comparison
+      : best,
+  );
+  return {
+    ...summarized,
+    assumedKvdr: true,
+    kvdr: {
+      assumedKvdr: true,
+      contributionBase: summarized.kvdrContributionBase,
+      healthInsurance: summarized.kvdrHealthInsurance,
+      careInsurance: summarized.kvdrCareInsurance,
+      total: summarized.kvdrTotalContributions,
+      deductible: summarized.kvdrDeductibleContributions,
+      healthInsuranceRate:
+        (KVDR_GENERAL_HEALTH_INSURANCE_RATE_2026 + KVDR_AVERAGE_ADDITIONAL_RATE_2026) *
+        KVDR_PENSIONER_HEALTH_SHARE,
+      careInsuranceRate: result.kvdrCareInsuranceRate,
+      annualContributionCeilingPerPerson: KVDR_ANNUAL_CONTRIBUTION_CEILING_2026,
+    },
+    advantageDistribution: buildAdvantageDistribution(comparisons),
+    etfTaxMethod: closestMethodSample.etfTaxMethod,
+  };
+}
+
+function averageComparison(comparisons) {
+  if (!Array.isArray(comparisons) || comparisons.length === 0) {
+    return {};
+  }
+  const numericKeys = Object.keys(comparisons[0]).filter(
+    (key) => comparisons.every((comparison) => typeof comparison[key] === "number"),
+  );
+  const average = Object.fromEntries(numericKeys.map((key) => [
+    key,
+    comparisons.reduce((sum, comparison) => sum + comparison[key], 0) / comparisons.length,
+  ]));
+  average.avdAdvantage = comparisonAdvantageFromTotals(average);
+  return average;
+}
+
+function buildAdvantageDistribution(comparisons, requestedBinCount = 16) {
+  const samples = comparisons.map((comparison) => ({
+    advantage: comparisonAdvantageFromTotals(comparison) / 12,
+    avdNet: Math.max(Number(comparison.avdTotalNetIncome) || 0, 0) / 12,
+    etfNet: Math.max(Number(comparison.etfTotalNetIncome) || 0, 0) / 12,
+    pathRealAnnualReturn: Number(comparison.pathRealAnnualReturn),
+  }));
+  const advantages = samples.map((sample) => sample.advantage);
+  const sortedAdvantages = [...advantages].sort((left, right) => left - right);
+  const maximumBinCount = Math.max(6, Math.round(Number(requestedBinCount) || 16));
+  const binCount = clamp(Math.ceil(Math.sqrt(Math.max(samples.length, 1))), 6, maximumBinCount);
+  const evenBinCount = binCount % 2 === 0 ? binCount : binCount + 1;
+  const robustLower = percentile(sortedAdvantages, 0.05);
+  const robustUpper = percentile(sortedAdvantages, 0.95);
+  const rawBound = Math.max(Math.abs(robustLower), Math.abs(robustUpper), 1);
+  const magnitude = 10 ** Math.floor(Math.log10(rawBound));
+  const scaledBound = rawBound / magnitude;
+  const niceFactor = scaledBound <= 1 ? 1 : scaledBound <= 2 ? 2 : scaledBound <= 5 ? 5 : 10;
+  const bound = niceFactor * magnitude;
+  const binWidth = bound * 2 / evenBinCount;
+  const bins = Array.from({ length: evenBinCount }, (_, index) => ({
+    min: -bound + index * binWidth,
+    max: -bound + (index + 1) * binWidth,
+    count: 0,
+  }));
+  for (const advantage of advantages) {
+    const index = clamp(Math.floor((advantage + bound) / binWidth), 0, bins.length - 1);
+    bins[index].count += 1;
+  }
+  const tieTolerance = 0.005;
+  const avdWinCount = advantages.filter((value) => value > tieTolerance).length;
+  const etfWinCount = advantages.filter((value) => value < -tieTolerance).length;
+  const tieCount = advantages.length - avdWinCount - etfWinCount;
+  const logSamples = samples
+    .filter((sample) => sample.avdNet > 0 && sample.etfNet > 0)
+    .map((sample) => Math.log(sample.avdNet / sample.etfNet));
+  const meanLogDifference = logSamples.reduce((sum, value) => sum + value, 0) /
+    Math.max(logSamples.length, 1);
+  const returnSamples = samples.filter((sample) => Number.isFinite(sample.pathRealAnnualReturn));
+  const sortedReturns = returnSamples
+    .map((sample) => sample.pathRealAnnualReturn)
+    .sort((left, right) => left - right);
+  const medianRealAnnualReturn = percentile(sortedReturns, 0.5);
+  const summarizeReturnRegime = (regimeSamples) => {
+    const regimeWinCount = regimeSamples.filter(
+      (sample) => sample.advantage > tieTolerance,
+    ).length;
+    return {
+      pathCount: regimeSamples.length,
+      avdWinCount: regimeWinCount,
+      avdWinRate: regimeWinCount / Math.max(regimeSamples.length, 1),
+      meanAdvantage: regimeSamples.reduce((sum, sample) => sum + sample.advantage, 0) /
+        Math.max(regimeSamples.length, 1),
+    };
+  };
+  const returnRegimes = returnSamples.length > 1
+    ? {
+        medianRealAnnualReturn,
+        belowMedian: summarizeReturnRegime(
+          returnSamples.filter((sample) => sample.pathRealAnnualReturn < medianRealAnnualReturn),
+        ),
+        aboveMedian: summarizeReturnRegime(
+          returnSamples.filter((sample) => sample.pathRealAnnualReturn > medianRealAnnualReturn),
+        ),
+        atMedianPathCount: returnSamples.filter(
+          (sample) => sample.pathRealAnnualReturn === medianRealAnnualReturn,
+        ).length,
+      }
+    : null;
+  return {
+    pathCount: samples.length,
+    avdWinCount,
+    etfWinCount,
+    tieCount,
+    avdWinRate: avdWinCount / Math.max(samples.length, 1),
+    etfWinRate: etfWinCount / Math.max(samples.length, 1),
+    mean: advantages.reduce((sum, value) => sum + value, 0) / Math.max(advantages.length, 1),
+    median: percentile(sortedAdvantages, 0.5),
+    p10: percentile(sortedAdvantages, 0.1),
+    p90: percentile(sortedAdvantages, 0.9),
+    logUtilityPathCount: logSamples.length,
+    logCertaintyEquivalentAdvantage: Math.exp(meanLogDifference) - 1,
+    returnRegimes,
+    bound,
+    bins,
+  };
+}
+
+function comparisonAdvantageFromTotals(comparison) {
+  return (Number(comparison?.avdTotalNetIncome) || 0) -
+    (Number(comparison?.etfTotalNetIncome) || 0);
+}
+
+function comparisonForResult(result, pensionMonthly) {
+  return compareSimulationResult(result, {
+    pensionMonthly,
+    terms: uiState.adjustInflation ? "real" : "nominal",
+  });
+}
+
+function formatPercentRate(value) {
+  return numberFormat({ style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+}
+
+function renderTaxComparison(result) {
+  if (!result || !elements.comparisonView) {
+    return;
+  }
+  const { pensionMonthly } = comparisonInputs();
+  const comparison = comparisonForResult(result, pensionMonthly);
+  const etfState = representativeEtfState(result);
+  const etfSummary = result.etfComparison?.[uiState.adjustInflation ? "real" : "nominal"];
+  const avdAdvantage = comparisonAdvantageFromTotals(comparison);
+  elements.comparisonEtfTaxMethod.textContent = t(
+    comparison.etfTaxMethod === "tariff" ? "comparison.favorableTaxApplied" : "comparison.flatTaxApplied",
+  );
+  elements.comparisonEtfTaxMethod.dataset.method = comparison.etfTaxMethod;
+  elements.comparisonDelta.textContent = formatCurrency(Math.abs(avdAdvantage) / 12);
+  const comparisonPathCount = comparison.advantageDistribution?.pathCount ?? 0;
+  elements.comparisonDeltaLabel.textContent =
+    Math.abs(avdAdvantage) < 1
+      ? t("comparison.averageAvdNeutral", { paths: comparisonPathCount })
+      : avdAdvantage > 0
+        ? t("comparison.averageAvdAdvantage", { paths: comparisonPathCount })
+        : t("comparison.averageAvdDisadvantage", { paths: comparisonPathCount });
+  const etfValue = etfSummary?.value?.median ?? etfState.value;
+  const etfContributions = etfSummary?.contributions?.median ?? etfState.contributions;
+  const etfAdvanceAssessments = etfSummary?.advanceAssessments?.median ?? etfState.advanceAssessments;
+  const etfTaxPaid = etfSummary?.totalTaxPaid?.median ?? etfState.totalTaxPaid;
+  const etfLossCarryforward = etfSummary?.capitalLossCarryforward?.median ?? etfState.capitalLossCarryforward;
+  const etfRemainingCostBasis = etfSummary?.remainingCostBasis?.median
+    ?? etfState.lots.reduce((sum, lot) => sum + lot.costBasis, 0);
+  const fireWithdrawals = etfSummary?.preRetirementWithdrawals?.median ?? 0;
+  const fireShortfall = etfSummary?.preRetirementWithdrawalShortfall?.median ?? 0;
+  const depletedPathShare = etfSummary?.depletedPathShare ?? 0;
+  elements.comparisonEtfRetirementValue.textContent = formatCurrency(etfValue);
+  elements.comparisonEtfContributions.textContent = formatCurrency(etfContributions);
+  elements.comparisonEtfGain.textContent = formatCurrency(etfValue - etfRemainingCostBasis);
+  elements.comparisonEtfAdvanceAssessments.textContent = formatCurrency(etfAdvanceAssessments);
+  elements.comparisonEtfTaxPaid.textContent = formatCurrency(etfTaxPaid);
+  elements.comparisonEtfLossCarryforward.textContent = formatCurrency(etfLossCarryforward);
+  elements.comparisonFireWithdrawals.textContent = formatCurrency(fireWithdrawals);
+  elements.comparisonFireShortfall.textContent = formatCurrency(fireShortfall);
+  elements.comparisonFireStatus.classList.toggle("hidden", depletedPathShare <= 0);
+  elements.comparisonFireStatus.textContent = t("comparison.fireDepotDepleted", {
+    share: numberFormat({ style: "percent", maximumFractionDigits: 0 }).format(depletedPathShare),
+  });
+  renderIncomeComparisonBars(comparison);
+  renderAdvantageDistribution(comparison.advantageDistribution);
+  renderComparisonMatrix(result);
+}
+
+function formatSignedCurrency(value) {
+  const numeric = Number(value) || 0;
+  const sign = numeric > 0 ? "+" : numeric < 0 ? "−" : "";
+  return `${sign}${formatCurrency(Math.abs(numeric))}`;
+}
+
+function formatSignedPercent(value) {
+  const numeric = Number(value) || 0;
+  const sign = numeric > 0 ? "+" : numeric < 0 ? "−" : "";
+  return `${sign}${numberFormat({ style: "percent", maximumFractionDigits: 1 }).format(Math.abs(numeric))}`;
+}
+
+function renderAdvantageDistribution(distribution) {
+  if (!elements.comparisonAdvantageDistribution || !distribution) {
+    return;
+  }
+  const maximumCount = Math.max(...distribution.bins.map((bin) => bin.count), 1);
+  const winRate = numberFormat({ style: "percent", maximumFractionDigits: 0 }).format(
+    distribution.avdWinRate,
+  );
+  const median = formatSignedCurrency(distribution.median);
+  const lower = formatSignedCurrency(distribution.p10);
+  const upper = formatSignedCurrency(distribution.p90);
+  const ariaLabel = t("comparison.distributionAria", {
+    paths: distribution.pathCount,
+    winRate,
+    median,
+    lower,
+    upper,
+  });
+  const bars = distribution.bins.map((bin, index) => {
+    const height = bin.count / maximumCount * 100;
+    const midpoint = (bin.min + bin.max) / 2;
+    const sideClass = midpoint < 0 ? "is-etf-side" : "is-avd-side";
+    const share = numberFormat({ style: "percent", maximumFractionDigits: 1 }).format(
+      bin.count / Math.max(distribution.pathCount, 1),
+    );
+    const titleKey = index === 0
+      ? "comparison.distributionLowerTailTitle"
+      : index === distribution.bins.length - 1
+        ? "comparison.distributionUpperTailTitle"
+        : "comparison.distributionBinTitle";
+    const title = t(titleKey, {
+      lower: formatSignedCurrency(bin.min),
+      upper: formatSignedCurrency(bin.max),
+      count: bin.count,
+      share,
+    });
+    return `<button type="button" class="advantage-histogram-bin ${sideClass}" style="height:${height.toFixed(4)}%" data-histogram-tooltip="${title}" aria-label="${title}"><span>${bin.count}</span></button>`;
+  }).join("");
+  const tickValues = [
+    -distribution.bound,
+    -distribution.bound / 2,
+    0,
+    distribution.bound / 2,
+    distribution.bound,
+  ];
+  const ticks = tickValues.map((value, index) =>
+    `<span class="${index === 2 ? "is-zero" : ""}" style="left:${index * 25}%">${formatSignedCurrency(value)}</span>`).join("");
+  const gridLines = tickValues.slice(1, -1).map((value, index) =>
+    `<i class="advantage-axis-gridline${value === 0 ? " is-zero" : ""}" style="left:${(index + 1) * 25}%"></i>`).join("");
+  const returnRegimes = distribution.returnRegimes;
+  const returnRegimeHtml = returnRegimes
+    ? `<div class="advantage-return-regimes">
+        <p>${t("comparison.distributionReturnSplitTitle", {
+          median: formatSignedPercent(returnRegimes.medianRealAnnualReturn),
+        })}</p>
+        <div>
+          ${[
+            ["belowMedian", "comparison.distributionBelowMedianReturn"],
+            ["aboveMedian", "comparison.distributionAboveMedianReturn"],
+          ].map(([key, labelKey]) => {
+            const regime = returnRegimes[key];
+            const rate = numberFormat({ style: "percent", maximumFractionDigits: 0 }).format(
+              regime.avdWinRate,
+            );
+            return `<span><small>${t(labelKey)}</small><strong>${t("comparison.distributionRegimeWinRate", {
+              rate,
+              paths: regime.pathCount,
+            })}</strong></span>`;
+          }).join("")}
+        </div>
+      </div>`
+    : "";
+  elements.comparisonAdvantageDistribution.innerHTML = `
+    <div class="advantage-distribution-body">
+      <div class="advantage-distribution-plot">
+        <div class="advantage-histogram" role="img" aria-label="${ariaLabel}">
+          ${gridLines}
+          <div class="advantage-histogram-bars" style="--histogram-bin-count:${distribution.bins.length}">${bars}</div>
+        </div>
+        <div class="advantage-histogram-ticks" aria-hidden="true">${ticks}</div>
+        <div class="advantage-distribution-axis" aria-hidden="true">
+          <span>← ${t("comparison.distributionEtfSide")}</span>
+          <b>${t("comparison.distributionAxisTitle")}</b>
+          <span>${t("comparison.distributionAvdSide")} →</span>
+        </div>
+        ${returnRegimeHtml}
+        <p>${t("comparison.distributionRange", { lower, upper })}</p>
+      </div>
+      <div class="advantage-distribution-stats">
+        <span><small>${t("comparison.distributionAvdBetter")}</small><strong>${winRate}</strong></span>
+        <span><small>${t("comparison.distributionMedian")}</small><strong>${formatSignedCurrency(distribution.median)}</strong></span>
+        <span><small>${t("comparison.distributionLogValue")}</small><strong>${formatSignedPercent(distribution.logCertaintyEquivalentAdvantage)}</strong></span>
+      </div>
+    </div>
+  `;
+}
+
+function incomeWaterfallGeometry({ pension, baselineEtf, decision, netTotal }, maximumGross) {
+  const additions = [pension, baselineEtf, decision].map((value) =>
+    Math.max(Number(value) || 0, 0));
+  const gross = additions.reduce((sum, value) => sum + value, 0);
+  const net = clamp(Number(netTotal) || 0, 0, gross);
+  const tax = gross - net;
+  const scale = Math.max(Number(maximumGross) || 0, gross, 1);
+  let runningTotal = 0;
+  const positiveSteps = additions.map((value) => {
+    const start = runningTotal;
+    runningTotal += value;
+    return { start, end: runningTotal, value };
+  });
+  const toGeometry = (step) => ({
+    ...step,
+    bottomPercent: clamp(Math.min(step.start, step.end) / scale * 100, 0, 100),
+    heightPercent: clamp(Math.abs(step.end - step.start) / scale * 100, 0, 100),
+  });
+  return {
+    gross,
+    net,
+    scale,
+    tax,
+    steps: [
+      ...positiveSteps.map(toGeometry),
+      toGeometry({ start: gross, end: net, value: -tax }),
+      toGeometry({ start: 0, end: net, value: net }),
+    ],
+  };
+}
+
+function waterfallConnectorPercent(currentStep, nextStep, scale) {
+  const currentEndpoints = [currentStep.start, currentStep.end];
+  const nextEndpoints = [nextStep.start, nextStep.end];
+  let closest = { difference: Number.POSITIVE_INFINITY, level: 0 };
+  for (const current of currentEndpoints) {
+    for (const next of nextEndpoints) {
+      const difference = Math.abs(current - next);
+      if (difference < closest.difference) {
+        closest = { difference, level: (current + next) / 2 };
+      }
+    }
+  }
+  return clamp(closest.level / Math.max(Number(scale) || 0, 1) * 100, 0, 100);
+}
+
+function renderIncomeComparisonBars(comparison) {
+  if (!elements.comparisonBars) {
+    return;
+  }
+  const pensionGross = Math.max(comparison.pensionGross, 0);
+  const baselineEtfGross = Math.max(comparison.baselineEtfGrossWithdrawal, 0);
+  const scenarios = [
+    {
+      className: "avd-bar",
+      label: t("comparison.avdLabel"),
+      decisionGross: comparison.grossWithdrawal,
+      mirrored: false,
+      net: comparison.avdTotalNetIncome,
+    },
+    {
+      className: "etf-bar",
+      label: t("comparison.etfLabel"),
+      decisionGross: comparison.etfGrossWithdrawal,
+      mirrored: true,
+      net: comparison.etfTotalNetIncome,
+    },
+  ];
+  const maximumGross = Math.max(
+    ...scenarios.map((scenario) => pensionGross + baselineEtfGross + scenario.decisionGross),
+    1,
+  );
+  const stepDefinitions = [
+    { className: "pension-step", label: t("comparison.pensionGrossLegend"), sign: "+" },
+    { className: "baseline-etf-step", label: t("comparison.baselineEtfGrossLegend"), sign: "+" },
+    { className: "decision-step", label: t("comparison.comparedGrossLegend"), sign: "+" },
+    { className: "tax-step", label: t("comparison.taxLegend"), sign: "−" },
+    { className: "net-step", label: t("comparison.netLegend"), sign: "=" },
+  ];
+
+  elements.comparisonBars.innerHTML = scenarios.map((scenario) => {
+    const geometry = incomeWaterfallGeometry({
+      pension: pensionGross,
+      baselineEtf: baselineEtfGross,
+      decision: scenario.decisionGross,
+      netTotal: scenario.net,
+    }, maximumGross);
+    const ariaLabel = t("comparison.chartAria", {
+      scenario: scenario.label,
+      gross: formatCurrency(geometry.gross / 12),
+      pension: formatCurrency(pensionGross / 12),
+      baselineEtf: formatCurrency(baselineEtfGross / 12),
+      compared: formatCurrency(scenario.decisionGross / 12),
+      tax: formatCurrency(geometry.tax / 12),
+      net: formatCurrency(geometry.net / 12),
+    });
+    const stepOrder = scenario.mirrored ? [4, 3, 2, 1, 0] : [0, 1, 2, 3, 4];
+    const stepsHtml = stepOrder.map((stepIndex, displayIndex) => {
+      const step = geometry.steps[stepIndex];
+      const nextStep = geometry.steps[stepOrder[displayIndex + 1]];
+      const index = stepIndex;
+      const definition = stepDefinitions[index];
+      const absoluteValue = Math.abs(step.value);
+      const amount = `${definition.sign} ${formatCurrency(absoluteValue / 12)}`;
+      const connectorHtml = nextStep
+        ? `<i class="waterfall-connector" style="bottom:${waterfallConnectorPercent(step, nextStep, geometry.scale).toFixed(4)}%"></i>`
+        : "";
+      return `<div class="waterfall-step ${definition.className}" style="--display-index:${displayIndex}">
+        <strong>${amount}</strong>
+        <span class="waterfall-track" aria-hidden="true">${connectorHtml}<i class="waterfall-bar" style="bottom:${step.bottomPercent.toFixed(4)}%;height:${step.heightPercent.toFixed(4)}%;--step-delay:${displayIndex * 65}ms"></i></span>
+        <span class="waterfall-step-label"><b>${definition.label}</b><small title="${t("comparison.cumulativeValue")}">${formatCurrency(step.end / 12)}</small></span>
+      </div>`;
+    }).join("");
+    const grossToNetDetail = t("comparison.grossToNetDetail", {
+      gross: formatCurrency(geometry.gross / 12),
+      net: formatCurrency(geometry.net / 12),
+    });
+    return `<div class="income-bar-row waterfall-scenario ${scenario.className}${scenario.mirrored ? " is-mirrored" : ""}">
+      <div class="income-bar-label">
+        <div><span>${scenario.label}</span><small>${grossToNetDetail}</small></div>
+        <strong>${formatCurrency(geometry.net / 12)}</strong>
+      </div>
+      <div class="waterfall-steps vertical-waterfall" role="img" aria-label="${ariaLabel}">${stepsHtml}</div>
+    </div>`;
+  }).join("");
+}
+
+function renderComparisonMatrix(result) {
+  elements.comparisonScenarioHead.innerHTML = `<tr><th scope="col">${t("comparison.pensionAxis")}</th><th scope="col">${t("comparison.scenarioValues")}</th></tr>`;
+  elements.comparisonScenarioBody.innerHTML = COMPARISON_PENSION_LEVELS.map((pension) => {
+    const value = comparisonForResult(result, pension);
+    const avd = formatCurrency(value.avdTotalNetIncome / 12);
+    const ordinaryEtf = formatCurrency(value.etfTotalNetIncome / 12);
+    const winner = value.avdTotalNetIncome > value.etfTotalNetIncome ? "avd" : value.etfTotalNetIncome > value.avdTotalNetIncome ? "etf" : "tie";
+    const aria = t("comparison.cellAria", {
+      pension: formatCurrency(pension),
+      avd,
+      ordinaryEtf,
+    });
+    return `<tr><th scope="row">${formatCurrency(pension)}</th><td data-winner="${winner}" aria-label="${aria}"><span>${avd}</span><i aria-hidden="true">/</i><span>${ordinaryEtf}</span></td></tr>`;
+  }).join("");
+}
+
 function renderSummary(result, adjustInflation) {
   result.adjustedForInflation = adjustInflation;
   const summary = retirementSummaryValues(result, adjustInflation);
@@ -2864,6 +4971,7 @@ function renderSummary(result, adjustInflation) {
   elements.finalRange.textContent = formatCompactRangeEuro(summary.finalRangeMin, summary.finalRangeMax);
   elements.averageSupport.textContent = formatCurrency(summary.averageSupport);
   populateInfoTooltips(result, adjustInflation);
+  renderTaxComparison(result);
   for (const el of summaryEls) {
     el.classList.remove("value-updated");
     void el.offsetWidth;
@@ -2874,24 +4982,19 @@ function renderSummary(result, adjustInflation) {
 function retirementSummaryValues(result, adjustInflation) {
   const seriesType = adjustInflation ? "real" : "nominal";
   const retirementStats = result.yearlyStats[result.preRetirementYear][seriesType];
-  const withdrawalYearIndex = firstWithdrawalYearIndex(result, seriesType);
+  const decisionComparison = compareSimulationResult(result, {
+    pensionMonthly: 0,
+    terms: seriesType,
+  });
   return {
     seriesType,
     retirementValue: retirementStats.household.median,
-    withdrawalIncome: result.yearlyStats[withdrawalYearIndex][seriesType].withdrawals.median,
+    withdrawalIncome: decisionComparison.grossWithdrawal / 12,
     finalRangeMin: retirementStats.household.p2_5,
     finalRangeMax: retirementStats.household.p97_5,
-    averageSupport: result.averageAnnualSupport,
+    averageSupport:
+      result.averageAnnualSupportStats?.[seriesType]?.median ?? result.averageAnnualSupport,
   };
-}
-
-function firstWithdrawalYearIndex(result, seriesType) {
-  for (let yearIndex = result.preRetirementYear; yearIndex < result.yearlyStats.length; yearIndex += 1) {
-    if (result.yearlyStats[yearIndex][seriesType].withdrawals.median > 0) {
-      return yearIndex;
-    }
-  }
-  return result.preRetirementYear;
 }
 
 function inflowSeriesType() {
@@ -3285,19 +5388,38 @@ export {
   annualSupportForYear,
   baseSubsidy,
   buildDataStatusText,
+  buildEtfHistoricalPrelude,
   buildHistoricalPaths,
+  buildAdvantageDistribution,
   buildWithdrawalTooltipText,
+  calculateKvdrContributions,
   calculateBootstrapSamplingRealCagr,
+  calculateEtfTaxYear,
   calculateHistoricalRealCagr,
   chartLoadingPatternText,
+  compareSimulationResult,
+  compareNetWithdrawals,
+  comparisonAdvantageFromTotals,
+  incomeTax2026,
   formatSuccessPercent,
+  incomeWaterfallGeometry,
+  waterfallConnectorPercent,
   makeBootstrapPath,
+  averageComparison,
   migrateSession,
+  parseBasisRateCsv,
+  parseCpiCsv,
+  parseMarketCsv,
   parseChildBirthYearInput,
   preciseAge,
+  projectOrdinaryEtfPath,
   projectPath,
   recenterBootstrapSeries,
+  realizeEtfWithdrawal,
+  resolveMonthlyPension,
   retirementSummaryValues,
   setLanguage,
   simulateHousehold,
+  statutoryPensionTaxableShare,
+  kvdrCareInsuranceRateForHousehold,
 };

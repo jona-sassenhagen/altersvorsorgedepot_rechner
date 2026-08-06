@@ -16,7 +16,7 @@
     ></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=20260804-5" />
   </head>
   <body>
     <div class="page-shell">
@@ -290,6 +290,13 @@
 
           <div id="error-banner" class="error-banner hidden"></div>
 
+          <nav class="mode-switcher" aria-label="Ansicht wählen" data-i18n-aria-label="comparison.modeAria">
+            <button id="projection-mode" class="mode-button is-active" type="button" aria-pressed="true" data-i18n="comparison.projectionMode">Projektion</button>
+            <button id="comparison-mode" class="mode-button" type="button" aria-pressed="false" data-i18n="comparison.comparisonMode">Nettovergleich</button>
+          </nav>
+
+          <div id="projection-view">
+
           <div class="summary-grid">
             <article class="summary-card">
               <span class="summary-label label-with-info">
@@ -303,9 +310,9 @@
             </article>
             <article class="summary-card withdrawal-summary-card">
               <span class="summary-label label-with-info">
-                <span data-i18n="results.withdrawalIncome">Ø Zusatzrente (Brutto)</span>
+                <span data-i18n="results.withdrawalIncome">Ø Zusatzrente inkl. Riester (Brutto)</span>
                 <span class="info-wrap" data-tooltip-key="withdrawalRule">
-                  <button class="info-button" type="button" aria-label="Info zur Brutto-Zusatzrente, Erfolgsquote und möglichen Entnahmelücken beim gewählten Entnahmesatz" data-i18n-aria-label="aria.withdrawalRuleInfo" aria-describedby="withdrawal-rule-tooltip">i</button>
+                  <button class="info-button" type="button" aria-label="Info zur konsolidierten Brutto-Zusatzrente, Erfolgsquote und möglichen Entnahmelücken beim gewählten Entnahmesatz" data-i18n-aria-label="aria.withdrawalRuleInfo" aria-describedby="withdrawal-rule-tooltip">i</button>
                   <span id="withdrawal-rule-tooltip" class="info-tooltip withdrawal-info-tooltip" role="tooltip"></span>
                 </span>
               </span>
@@ -397,6 +404,125 @@
             </div>
           </section>
 
+          </div>
+
+          <section id="comparison-view" class="comparison-view hidden" aria-labelledby="comparison-title">
+            <header class="comparison-hero">
+              <div>
+                <p class="eyebrow" data-i18n="comparison.eyebrow">Nachgelagerte Besteuerung vs. Steuerstundung</p>
+                <h3 id="comparison-title" data-i18n="comparison.title">Was bleibt im Ruhestand?</h3>
+                <p data-i18n="comparison.intro">Der Vergleich lässt denselben ETF-Basisplan in beiden Szenarien laufen und lenkt den Haushaltsbeitrag X entweder ins AVD oder zusätzlich in den ETF.</p>
+              </div>
+              <span class="comparison-year-badge" data-i18n="comparison.taxYear">Steuermodell 2026</span>
+            </header>
+
+            <div class="comparison-controls" role="group" aria-label="Annahmen für den Ruhestand" data-i18n-aria-label="comparison.incomeAria">
+              <div class="pension-input-card">
+                <div class="pension-input-heading">
+                  <span data-i18n="comparison.pensionInput">Gesetzliche Rente</span>
+                  <div class="pension-input-mode" role="group" aria-label="Renteneingabe" data-i18n-aria-label="comparison.pensionModeAria">
+                    <button id="pension-mode-monthly" type="button" aria-pressed="true" data-i18n="comparison.pensionModeMonthly">€ / Monat</button>
+                    <button id="pension-mode-points" type="button" aria-pressed="false" data-i18n="comparison.pensionModePoints">Rentenpunkte</button>
+                  </div>
+                </div>
+                <label id="pension-monthly-field" for="comparison-pension">
+                  <span data-i18n="comparison.pensionMonthly">Brutto / Monat</span>
+                  <span class="comparison-input-shell"><input id="comparison-pension" type="number" min="0" max="20000" step="100" value="1500" inputmode="decimal" /><span>€</span></span>
+                </label>
+                <label id="pension-points-field" class="hidden" for="comparison-pension-points">
+                  <span data-i18n="comparison.pensionPoints">Gesammelte Rentenpunkte</span>
+                  <span class="comparison-input-shell"><input id="comparison-pension-points" type="number" min="0" max="200" step="0.1" value="35.3" inputmode="decimal" /><span data-i18n="comparison.pensionPointsUnit">Punkte</span></span>
+                </label>
+                <small id="pension-points-conversion" class="pension-points-conversion hidden"></small>
+              </div>
+            </div>
+
+            <section class="etf-profile-card" aria-labelledby="etf-profile-title">
+              <div class="etf-profile-heading">
+                <div>
+                  <h3 id="etf-profile-title" data-i18n="comparison.etfProfileTitle">Bestehender ETF-Sparplan</h3>
+                  <p id="etf-profile-hint" data-i18n="comparison.savingsProfileHint">Dieser Basisplan läuft in beiden Szenarien gleich. Nur der Haushaltsbeitrag X fließt wahlweise ins AVD oder zusätzlich in diesen ETF.</p>
+                </div>
+                <div class="etf-profile-inputs">
+                  <label for="comparison-etf-contribution"><span data-i18n="comparison.etfContributionMonthly">Bestehende ETF-Rate / Monat</span><span class="comparison-input-shell"><input id="comparison-etf-contribution" type="number" min="0" max="20000" step="50" value="500" inputmode="numeric" aria-describedby="etf-profile-hint" /><span>€</span></span></label>
+                  <label class="etf-profile-field--year" for="comparison-savings-start"><span data-i18n="comparison.savingsStartYear">Sparbeginn</span><input id="comparison-savings-start" type="number" min="1900" max="2100" step="1" value="2026" inputmode="numeric" aria-describedby="etf-profile-hint" /></label>
+                  <label class="etf-profile-field--year" for="comparison-savings-end"><span data-i18n="comparison.savingsEndYear">Sparende</span><input id="comparison-savings-end" type="number" min="1900" max="2100" step="1" value="2057" inputmode="numeric" aria-describedby="etf-profile-hint" /></label>
+                  <label class="etf-profile-field--tranches" for="comparison-tranche-count"><span data-i18n="comparison.trancheCount">Anzahl der Tranchen</span><input id="comparison-tranche-count" type="number" min="1" max="20" step="1" value="5" inputmode="numeric" aria-describedby="etf-profile-hint" /></label>
+                </div>
+              </div>
+              <fieldset class="etf-fire-phase">
+                <legend data-i18n="comparison.firePhaseTitle">Phase nach Sparende (FIRE)</legend>
+                <label for="comparison-post-savings-flow"><span data-i18n="comparison.postSavingsFlow">ETF-Bewegung / Monat</span><span class="comparison-input-shell"><input id="comparison-post-savings-flow" type="number" min="-20000" max="20000" step="50" value="0" inputmode="decimal" aria-describedby="etf-fire-hint" /><span>€</span></span></label>
+                <small id="etf-fire-hint" data-i18n="comparison.postSavingsFlowHint">Ab Januar nach Sparende bis zur Rente: positiv = Einzahlung, negativ = Entnahme, 0 € = keine Bewegung.</small>
+              </fieldset>
+              <dl class="etf-profile-summary" aria-live="polite">
+                <div><dt data-i18n="comparison.etfRetirementValue">ETF-Basisdepot zum Rentenbeginn</dt><dd id="comparison-etf-retirement-value">–</dd></div>
+                <div><dt data-i18n="comparison.etfContributions">Einzahlungen in den Basisplan</dt><dd id="comparison-etf-contributions">–</dd></div>
+                <div><dt data-i18n="comparison.etfUnrealizedGain">Unrealisierter Gewinn</dt><dd id="comparison-etf-gain">–</dd></div>
+                <div><dt data-i18n="comparison.etfAdvanceAssessments">Angesetzte Vorabpauschalen</dt><dd id="comparison-etf-advance-assessments">–</dd></div>
+                <div><dt data-i18n="comparison.etfTaxPaid">ETF-Steuern vor Rentenbeginn</dt><dd id="comparison-etf-tax-paid">–</dd></div>
+                <div><dt data-i18n="comparison.etfLossCarryforward">Verbleibender ETF-Verlusttopf</dt><dd id="comparison-etf-loss-carryforward">–</dd></div>
+                <div><dt data-i18n="comparison.fireWithdrawalsPaid">Ausgezahlte FIRE-Bruttoentnahmen</dt><dd id="comparison-fire-withdrawals">–</dd></div>
+                <div><dt data-i18n="comparison.fireWithdrawalShortfall">Nicht gedeckte FIRE-Bruttoentnahmen</dt><dd id="comparison-fire-shortfall">–</dd></div>
+              </dl>
+              <p id="comparison-fire-status" class="etf-fire-status hidden" role="status"></p>
+            </section>
+
+            <figure class="income-comparison-chart" aria-labelledby="income-chart-title" aria-live="polite">
+              <figcaption class="income-chart-header">
+                <div>
+                  <h3 id="income-chart-title" data-i18n="comparison.chartTitle">Vom Brutto zum Netto</h3>
+                  <p data-i18n="comparison.chartIntro">Bruttoeinkünfte werden addiert; Einkommensteuer und die modellierten KVdR-Beiträge werden anschließend gemeinsam abgezogen.</p>
+                </div>
+                <div class="comparison-chart-summary">
+                  <div class="comparison-delta" aria-label="Netto-Unterschied" data-i18n-aria-label="comparison.deltaAria">
+                    <span id="comparison-delta-label">Durchschnittlicher Vorteil/Nachteil für das AVD</span>
+                    <strong id="comparison-delta">–</strong>
+                  </div>
+                  <span id="comparison-etf-tax-method" class="tax-method-badge">–</span>
+                </div>
+              </figcaption>
+              <div class="income-chart-legend" aria-label="Legende">
+                <span><i class="income-legend-swatch pension-swatch"></i><span data-i18n="comparison.pensionGrossLegend">Gesetzliche Rente · brutto</span></span>
+                <span><i class="income-legend-swatch baseline-swatch"></i><span data-i18n="comparison.baselineEtfGrossLegend">ETF-Basisplan · brutto</span></span>
+                <span><i class="income-legend-swatch compared-swatch"></i><span data-i18n="comparison.comparedGrossLegend">Betrag X · brutto</span></span>
+                <span><i class="income-legend-swatch tax-swatch"></i><span data-i18n="comparison.taxLegend">Steuer + KV/PV · negativ</span></span>
+                <span><i class="income-legend-swatch net-swatch"></i><span data-i18n="comparison.netLegend">Gesamtnetto</span></span>
+              </div>
+              <div id="comparison-bars" class="income-bars"></div>
+              <p class="income-allocation-note" data-i18n="comparison.allocationNote">Rente, ETF-Basisplan und die Entnahme aus übertragenem Riester-Guthaben werden in beiden Szenarien als gemeinsame Einkommensströme berücksichtigt. Der letzte positive Balken konsolidiert Riester mit der Entnahme aus Betrag X. Der negative Balken umfasst Einkommensteuer und KVdR-Beiträge.</p>
+            </figure>
+
+            <figure class="advantage-distribution" aria-labelledby="advantage-distribution-title">
+              <figcaption>
+                <h3 id="advantage-distribution-title" data-i18n="comparison.distributionTitle">Verteilung des AVD-Vorteils</h3>
+                <p data-i18n="comparison.distributionIntro">Jeder Balken zählt identische historische Marktpfade nach dem monatlichen Gesamtnetto-Unterschied AVD minus ETF.</p>
+              </figcaption>
+              <div id="comparison-advantage-distribution" aria-live="polite"></div>
+            </figure>
+
+            <section class="scenario-section" aria-labelledby="scenario-title">
+              <div class="scenario-heading">
+                <div>
+                  <h3 id="scenario-title" data-i18n="comparison.scenarioTitle">Gesamtes Nettoalterseinkommen</h3>
+                  <p data-i18n="comparison.scenarioIntro">Jede Zeile zeigt AVD / ETF und summiert Rente, bestehenden ETF-Basisplan und Betrag X nach Einkommensteuer und KVdR-Beiträgen.</p>
+                </div>
+                <span data-i18n="comparison.matrixUnit">AVD / ETF · netto pro Monat</span>
+              </div>
+              <div class="scenario-table-wrap">
+                <table class="scenario-table">
+                  <thead id="comparison-scenario-head"></thead>
+                  <tbody id="comparison-scenario-body"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <aside class="comparison-assumptions">
+              <h3 data-i18n="comparison.assumptionsTitle">So liest du den Vergleich</h3>
+              <p data-i18n="comparison.assumptionsBody">Der bestehende ETF-Basisplan läuft in beiden Szenarien gleich; Betrag X fließt entweder ins AVD oder zusätzlich in den ETF. AVD-Auszahlungen werden nach gefördertem und ungefördertem Kapital aufgeteilt. Beim thesaurierenden ETF werden Verlustverrechnung, Vorabpauschalen im Folgejahr, Teilfreistellung, verfügbarer Pauschbetrag, Abgeltungsteuer und Günstigerprüfung modelliert. Für alle Haushalte wird KVdR unterstellt: Beiträge fallen nur auf die gesetzliche Rente an, werden vom verfügbaren Einkommen abgezogen und als Vorsorgeaufwendungen steuerlich berücksichtigt. Nicht enthalten: Kirchensteuer.</p>
+            </aside>
+          </section>
+
         </section>
 
         <section class="panel notes-panel">
@@ -474,6 +600,6 @@
       </div>
     </template>
 
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="./app.js?v=20260804-5"></script>
   </body>
 </html>

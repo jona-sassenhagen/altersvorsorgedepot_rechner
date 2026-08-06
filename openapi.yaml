@@ -1,0 +1,402 @@
+openapi: 3.1.0
+info:
+  title: Altersvorsorgedepot Simulation API
+  version: 1.0.0
+  description: |-
+    Local-only JSON API for the Altersvorsorgedepot calculator. Datasets are
+    loaded and cached by the local process. The GitHub Pages deployment does
+    not expose this API.
+servers:
+  - url: http://127.0.0.1:8001
+    description: Default local server
+paths:
+  /api/v1/health:
+    get:
+      operationId: getHealth
+      summary: Check API and dataset availability
+      responses:
+        "200":
+          description: All simulation datasets are available.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: One or more simulation datasets could not be loaded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/simulate:
+    post:
+      operationId: simulateHousehold
+      summary: Run a household projection
+      description: |-
+        Returns aggregate yearly and chart timelines, withdrawal diagnostics,
+        and ETF summaries. Raw historical paths and individual ETF lots are
+        intentionally omitted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulationRequest"
+      responses:
+        "200":
+          description: Projection completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulationResponse"
+        "400":
+          $ref: "#/components/responses/InvalidJson"
+        "413":
+          $ref: "#/components/responses/RequestTooLarge"
+        "415":
+          $ref: "#/components/responses/InvalidContentType"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+  /api/v1/compare:
+    post:
+      operationId: compareAvdAndEtf
+      summary: Compare AVD and ordinary ETF outcomes
+      description: |-
+        Runs the same projection and returns the path-paired AVD-versus-ETF
+        tax and net-income comparison. FIRE cash flows are netted before ETF
+        lots are sold.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ComparisonRequest"
+      responses:
+        "200":
+          description: Comparison completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComparisonResponse"
+        "400":
+          $ref: "#/components/responses/InvalidJson"
+        "413":
+          $ref: "#/components/responses/RequestTooLarge"
+        "415":
+          $ref: "#/components/responses/InvalidContentType"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+components:
+  responses:
+    InvalidJson:
+      description: The request body is not valid JSON.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    RequestTooLarge:
+      description: The request body exceeds 64 KiB.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InvalidContentType:
+      description: Content-Type is not application/json.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ValidationFailed:
+      description: One or more request fields are invalid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    IsoDate:
+      type: string
+      format: date
+      examples: ["2026-08-04"]
+    Person:
+      type: object
+      additionalProperties: false
+      required: [birthdate]
+      properties:
+        birthdate:
+          $ref: "#/components/schemas/IsoDate"
+        monthlyContribution:
+          type: number
+          minimum: 0
+          maximum: 20000
+          default: 0
+        initialBalance:
+          type: number
+          minimum: 0
+          maximum: 100000000
+          default: 0
+          description: Supported for the applicant.
+        retirementAge:
+          type: number
+          minimum: 50
+          maximum: 75
+          default: 67
+        incomeRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.3
+          description: Marginal income-tax rate as a decimal.
+    EtfComparisonInput:
+      type: object
+      additionalProperties: false
+      properties:
+        monthlyContribution:
+          type: number
+          minimum: 0
+          maximum: 20000
+          default: 500
+        startYear:
+          type: integer
+          minimum: 1900
+          maximum: 2100
+        endYear:
+          type: integer
+          minimum: 1900
+          maximum: 2100
+          description: Must be greater than or equal to startYear.
+        postSavingsMonthlyFlow:
+          type: number
+          minimum: -20000
+          maximum: 20000
+          default: 0
+          description: Positive is a contribution; negative is a requested gross FIRE withdrawal.
+        trancheCount:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 5
+    HouseholdInput:
+      type: object
+      additionalProperties: false
+      required: [applicant]
+      properties:
+        applicant:
+          $ref: "#/components/schemas/Person"
+        spouse:
+          oneOf:
+            - $ref: "#/components/schemas/Person"
+            - type: "null"
+        children:
+          type: array
+          maxItems: 25
+          default: []
+          items:
+            $ref: "#/components/schemas/IsoDate"
+        childBenefitDurationYears:
+          type: integer
+          minimum: 16
+          maximum: 25
+          default: 18
+        annualFeeRate:
+          type: number
+          minimum: 0
+          maximum: 0.015
+          default: 0.002
+          description: Decimal annual rate; 0.002 means 0.2%.
+        etfComparison:
+          $ref: "#/components/schemas/EtfComparisonInput"
+    SimulationOptions:
+      type: object
+      additionalProperties: false
+      properties:
+        asOfDate:
+          $ref: "#/components/schemas/IsoDate"
+        maxAge:
+          type: integer
+          minimum: 51
+          maximum: 100
+          default: 90
+        samplingMode:
+          type: string
+          enum: [historical-paths, block-bootstrap]
+          default: historical-paths
+        simulationCount:
+          type: integer
+          minimum: 1
+          maximum: 2500
+          default: 250
+          description: Used by block-bootstrap; historical-paths uses every eligible path.
+        seed:
+          type: integer
+          minimum: 0
+          maximum: 4294967295
+          default: 0
+        adjustInflowsForInflation:
+          type: boolean
+          default: true
+        withdrawalRate:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.04
+        withdrawalRateCandidates:
+          type: array
+          minItems: 1
+          maxItems: 20
+          default: [0.03, 0.04, 0.05]
+          items:
+            type: number
+            minimum: 0
+            maximum: 1
+        expectedRealAnnualReturn:
+          oneOf:
+            - type: number
+              minimum: -1
+              maximum: 1
+            - type: "null"
+          description: Null or omitted retains the historical return level.
+    SimulationRequest:
+      type: object
+      required: [household]
+      properties:
+        household:
+          $ref: "#/components/schemas/HouseholdInput"
+        options:
+          $ref: "#/components/schemas/SimulationOptions"
+    ComparisonInput:
+      type: object
+      additionalProperties: false
+      properties:
+        pensionMonthly:
+          type: number
+          minimum: 0
+          maximum: 20000
+          default: 0
+        terms:
+          type: string
+          enum: [real, nominal]
+          default: real
+    ComparisonRequest:
+      allOf:
+        - $ref: "#/components/schemas/SimulationRequest"
+        - type: object
+          properties:
+            comparison:
+              $ref: "#/components/schemas/ComparisonInput"
+    DataCoverage:
+      type: object
+      required: [marketAndInflationFrom, marketAndInflationThrough, basisRatesFrom, basisRatesThrough]
+      properties:
+        marketAndInflationFrom:
+          type: string
+          examples: ["1900-01"]
+        marketAndInflationThrough:
+          type: string
+          examples: ["2026-06"]
+        basisRatesFrom:
+          type: integer
+          examples: [1900]
+        basisRatesThrough:
+          type: integer
+          examples: [2026]
+    Metadata:
+      type: object
+      required: [asOfDate, currency, data, pathCount, samplingMode, withdrawalRate]
+      properties:
+        asOfDate:
+          $ref: "#/components/schemas/IsoDate"
+        currency:
+          const: EUR
+        data:
+          $ref: "#/components/schemas/DataCoverage"
+        pathCount:
+          type: integer
+        samplingMode:
+          type: string
+          enum: [historical-paths, block-bootstrap]
+        terms:
+          type: [string, "null"]
+          enum: [real, nominal, null]
+        withdrawalRate:
+          type: number
+    StatisticalSummary:
+      type: object
+      required: [mean, p2_5, median, p97_5]
+      properties:
+        mean: { type: number }
+        p2_5: { type: number }
+        median: { type: number }
+        p97_5: { type: number }
+    EtfAggregate:
+      type: object
+      properties:
+        advanceAssessments: { $ref: "#/components/schemas/StatisticalSummary" }
+        advanceTaxPaid: { $ref: "#/components/schemas/StatisticalSummary" }
+        totalTaxPaid: { $ref: "#/components/schemas/StatisticalSummary" }
+        capitalLossCarryforward: { $ref: "#/components/schemas/StatisticalSummary" }
+        pendingAdvanceAssessment: { $ref: "#/components/schemas/StatisticalSummary" }
+        contributions: { $ref: "#/components/schemas/StatisticalSummary" }
+        remainingCostBasis: { $ref: "#/components/schemas/StatisticalSummary" }
+        preRetirementWithdrawals: { $ref: "#/components/schemas/StatisticalSummary" }
+        preRetirementNetWithdrawals: { $ref: "#/components/schemas/StatisticalSummary" }
+        preRetirementWithdrawalShortfall: { $ref: "#/components/schemas/StatisticalSummary" }
+        depletedPathShare: { type: number, minimum: 0, maximum: 1 }
+        value: { $ref: "#/components/schemas/StatisticalSummary" }
+    EtfComparisonResponse:
+      type: object
+      properties:
+        config:
+          $ref: "#/components/schemas/EtfComparisonInput"
+        nominal: { $ref: "#/components/schemas/EtfAggregate" }
+        real: { $ref: "#/components/schemas/EtfAggregate" }
+        alternativeNominal: { $ref: "#/components/schemas/EtfAggregate" }
+        alternativeReal: { $ref: "#/components/schemas/EtfAggregate" }
+    HealthResponse:
+      type: object
+      required: [apiVersion, status, data]
+      properties:
+        apiVersion: { const: v1 }
+        status: { const: ok }
+        data: { $ref: "#/components/schemas/DataCoverage" }
+    SimulationResponse:
+      type: object
+      required: [apiVersion, metadata, projection, etfComparison]
+      properties:
+        apiVersion: { const: v1 }
+        metadata: { $ref: "#/components/schemas/Metadata" }
+        projection:
+          type: object
+          description: Aggregate timelines, retirement indices, subsidy, and withdrawal statistics.
+          additionalProperties: true
+        etfComparison: { $ref: "#/components/schemas/EtfComparisonResponse" }
+    ComparisonResponse:
+      type: object
+      required: [apiVersion, metadata, inputs, comparison, etfComparison]
+      properties:
+        apiVersion: { const: v1 }
+        metadata: { $ref: "#/components/schemas/Metadata" }
+        inputs: { $ref: "#/components/schemas/ComparisonInput" }
+        comparison:
+          type: object
+          description: Arithmetic mean tax, withdrawal, and net-income values across all paired historical paths, including transferred Riester withdrawals as a common deferred-tax stream, universal KVdR contributions on statutory pension income, their income-tax deduction, and an aggregated paired-path advantage distribution. The distribution includes AVD win rates below and above the median annualized real equity return through retirement. Annual KVdR amounts and resolved rates are exposed in flat fields and the nested kvdr object.
+          additionalProperties: true
+        etfComparison: { $ref: "#/components/schemas/EtfComparisonResponse" }
+    ErrorDetail:
+      type: object
+      required: [path, code, message]
+      properties:
+        path: { type: string }
+        code: { type: string }
+        message: { type: string }
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details:
+              type: array
+              items: { $ref: "#/components/schemas/ErrorDetail" }

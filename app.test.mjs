@@ -6,20 +6,37 @@ import {
   annualSupportForYear,
   baseSubsidy,
   buildDataStatusText,
+  buildEtfHistoricalPrelude,
   buildHistoricalPaths,
+  buildAdvantageDistribution,
   buildWithdrawalTooltipText,
   calculateBootstrapSamplingRealCagr,
+  calculateKvdrContributions,
   calculateHistoricalRealCagr,
+  calculateEtfTaxYear,
   chartLoadingPatternText,
+  compareSimulationResult,
+  compareNetWithdrawals,
+  comparisonAdvantageFromTotals,
   formatSuccessPercent,
+  incomeWaterfallGeometry,
+  waterfallConnectorPercent,
+  incomeTax2026,
   makeBootstrapPath,
+  averageComparison,
   migrateSession,
+  parseBasisRateCsv,
   parseChildBirthYearInput,
+  projectOrdinaryEtfPath,
   projectPath,
   recenterBootstrapSeries,
+  realizeEtfWithdrawal,
+  resolveMonthlyPension,
   retirementSummaryValues,
   setLanguage,
   simulateHousehold,
+  statutoryPensionTaxableShare,
+  kvdrCareInsuranceRateForHousehold,
 } from "./app.js";
 import { computeSimulationResult } from "./simulation-worker.js";
 
@@ -234,6 +251,66 @@ test("annualSupportForYear uses the configurable child-benefit duration with an 
   );
 });
 
+test("§10a approximation deducts eligible own contributions plus allowances", () => {
+  const support = annualSupportForYear({
+    applicant: { birthdate: new Date(1990, 0, 1), incomeRate: 0.3 },
+    spouse: null,
+    children: [],
+  }, {
+    applicantAnnualContribution: 1_800,
+    spouseAnnualContribution: 0,
+    yearEndDate: new Date(2026, 11, 31),
+    yearIndex: 1,
+  });
+
+  assert.equal(support.applicantDirect, 540);
+  assert.equal(support.applicantTax, 162);
+  assert.equal(support.applicant, 702);
+});
+
+test("starter bonus uses the actual contract start date", () => {
+  const support = annualSupportForYear({
+    applicant: { birthdate: new Date(2001, 0, 1), incomeRate: 0 },
+    spouse: null,
+    children: [],
+  }, {
+    applicantAnnualContribution: 100,
+    spouseAnnualContribution: 0,
+    contractStartDate: new Date(2026, 11, 1),
+    yearEndDate: new Date(2026, 11, 31),
+    yearIndex: 1,
+  });
+
+  assert.equal(support.applicantDirect, 50);
+});
+
+test("AVD tracks contributions above EUR 1,800 as non-funded principal", () => {
+  const household = {
+    annualFeeRate: 0,
+    applicant: {
+      birthdate: new Date(1990, 0, 1),
+      incomeRate: 0.3,
+      initialBalance: 0,
+      monthlyContribution: 200,
+      retirementAge: 67,
+    },
+    children: [],
+    spouse: null,
+  };
+  const bootstrap = Array.from({ length: 12 }, (_, index) => ({
+    inflationRatio: 1,
+    key: `2026-${String(index + 1).padStart(2, "0")}`,
+    marketReturn: 0,
+  }));
+
+  const path = projectPath(household, bootstrap, new Date(2026, 0, 1), 1);
+
+  assert.equal(path.avdTaxPools.applicant.fundedValue, 2_340);
+  assert.equal(path.avdTaxPools.applicant.unfundedValue, 762);
+  assert.equal(path.avdTaxPools.applicant.unfundedBasis, 762);
+  assert.equal(path.householdNominal[1], 3_102);
+});
+
 test("projectPath caps withdrawals at the available balance and records shortfalls", () => {
   const now = new Date(2026, 0, 1);
   const household = {
@@ -433,11 +510,28 @@ test("selected withdrawal rate changes income and path success without changing 
     retirementSummaryValues(higher, true).withdrawalIncome >
       retirementSummaryValues(lower, true).withdrawalIncome,
   );
+  const transferredRiesterComparison = compareSimulationResult(lower, {
+    pensionMonthly: 1_500,
+    terms: "real",
+  });
+  assert.ok(transferredRiesterComparison.commonAvdGrossWithdrawal > 0);
+  assert.equal(
+    transferredRiesterComparison.grossWithdrawal,
+    transferredRiesterComparison.commonAvdGrossWithdrawal,
+  );
+  assert.equal(
+    transferredRiesterComparison.etfGrossWithdrawal,
+    transferredRiesterComparison.commonAvdGrossWithdrawal,
+  );
+  assert.ok(Math.abs(
+    retirementSummaryValues(lower, true).withdrawalIncome -
+      transferredRiesterComparison.grossWithdrawal / 12,
+  ) < 1e-9);
 
   setLanguage("de");
-  assert.match(buildWithdrawalTooltipText(higher, true), /5 % des Depotwerts/);
+  assert.match(buildWithdrawalTooltipText(higher, true), /5 % des jeweiligen Depotwerts/);
   setLanguage("en");
-  assert.match(buildWithdrawalTooltipText(higher, true), /5 % of the portfolio value/);
+  assert.match(buildWithdrawalTooltipText(higher, true), /5 % of each portfolio value/);
   setLanguage("de");
 
   for (const invalidRate of [-0.01, 1.01, Number.NaN]) {
@@ -510,8 +604,13 @@ test("withdrawal summary does not select a pre-applicant-retirement spouse-only 
 
   const singleWithdrawal = retirementSummaryValues(singleResult, true).withdrawalIncome;
   const spouseWithdrawal = retirementSummaryValues(spouseResult, true).withdrawalIncome;
+  const singleComparisonWithdrawal = compareSimulationResult(singleResult, {
+    pensionMonthly: 1_500,
+    terms: "real",
+  }).grossWithdrawal / 12;
 
   assert.equal(singleResult.preRetirementYear, spouseResult.preRetirementYear);
+  assert.ok(Math.abs(singleWithdrawal - singleComparisonWithdrawal) < 1e-9);
   assert.ok(spouseWithdrawal >= singleWithdrawal);
 });
 
@@ -595,6 +694,43 @@ test("simulateHousehold indexes contributions and subsidies when inflow indexing
   assert.ok(yearOneWith.contributions.median > yearOneWithout.contributions.median * 1.02);
   assert.ok(yearOneWith.inflows.median > yearOneWithout.inflows.median * 1.02);
   assert.ok(lastYearWith.household.median > lastYearWithout.household.median * 1.3);
+});
+
+test("inflation-indexed support is summarized in real euros without nominal inflation outliers", () => {
+  const extremeInflationSeries = Array.from({ length: 24 }, (_, index) => ({
+    inflationRatio: 2,
+    key: `inflation-${index}`,
+    marketReturn: 0,
+  }));
+  const household = {
+    annualFeeRate: 0,
+    applicant: {
+      birthdate: new Date(1990, 0, 1),
+      incomeRate: 0,
+      initialBalance: 0,
+      monthlyContribution: 150,
+      retirementAge: 67,
+    },
+    children: [],
+    spouse: null,
+  };
+
+  const result = simulateHousehold(household, extremeInflationSeries, {
+    adjustInflowsForInflation: true,
+    maxAge: 37,
+    now: new Date(2025, 0, 1),
+    simulationCount: 1,
+    simulationSeedOffset: 0,
+  });
+
+  assert.ok(Math.abs(result.averageAnnualSupport - 540) < 1e-9);
+  assert.ok(Math.abs(result.averageAnnualSupportStats.real.median - 540) < 1e-9);
+  assert.ok(result.averageAnnualSupportStats.nominal.median > 1_000_000);
+  assert.ok(Math.abs(retirementSummaryValues(result, true).averageSupport - 540) < 1e-9);
+  assert.equal(
+    retirementSummaryValues(result, false).averageSupport,
+    result.averageAnnualSupportStats.nominal.median,
+  );
 });
 
 test("worker computation matches direct simulation for a fixed request", () => {
@@ -846,7 +982,7 @@ test("lower and higher real-return assumptions move identical seeded paths in or
   );
 });
 
-test("session v5 round-trips withdrawal rate and older sessions migrate to 4 percent", () => {
+test("session v11 adds ETF tax inputs without changing older saved scenarios", () => {
   const v5 = migrateSession({
     version: 5,
     controls: {
@@ -856,11 +992,21 @@ test("session v5 round-trips withdrawal rate and older sessions migrate to 4 per
       withdrawalRate: 0.045,
     },
   });
-  assert.equal(v5.version, 5);
+  assert.equal(v5.version, 11);
   assert.equal(v5.controls.expectedRealReturnMode, "custom");
   assert.equal(v5.controls.customExpectedRealReturn, 0.1);
   assert.equal(v5.controls.childBenefitDurationYears, 25);
   assert.equal(v5.controls.withdrawalRate, 0.045);
+  assert.equal(v5.controls.resultMode, "projection");
+  assert.equal(v5.controls.comparisonPensionMonthly, 1500);
+  assert.equal(v5.controls.comparisonPensionInputMode, "monthly");
+  assert.ok(Math.abs(v5.controls.comparisonPensionPoints * 42.52 - 1500) < 1e-9);
+  assert.equal(v5.controls.comparisonPostSavingsFlowMonthly, 0);
+  assert.equal(v5.controls.comparisonEtfContributionMonthly, 500);
+  assert.equal(v5.controls.comparisonTrancheCount, 5);
+  assert.equal(v5.controls.comparisonSavingsEndYear, 2057);
+  assert.equal("comparisonGainShare" in v5.controls, false);
+  assert.equal("comparisonEtfMonthly" in v5.controls, false);
 
   const v4 = migrateSession({
     version: 4,
@@ -870,7 +1016,7 @@ test("session v5 round-trips withdrawal rate and older sessions migrate to 4 per
       childBenefitDurationYears: 25,
     },
   });
-  assert.equal(v4.version, 5);
+  assert.equal(v4.version, 11);
   assert.equal(v4.controls.childBenefitDurationYears, 25);
   assert.equal(v4.controls.withdrawalRate, 0.04);
 
@@ -878,7 +1024,7 @@ test("session v5 round-trips withdrawal rate and older sessions migrate to 4 per
     version: 3,
     controls: { expectedRealReturnMode: "custom", customExpectedRealReturn: 0.1 },
   });
-  assert.equal(v3.version, 5);
+  assert.equal(v3.version, 11);
   assert.equal(v3.controls.expectedRealReturnMode, "custom");
   assert.equal(v3.controls.customExpectedRealReturn, 0.1);
   assert.equal(v3.controls.childBenefitDurationYears, 18);
@@ -886,12 +1032,576 @@ test("session v5 round-trips withdrawal rate and older sessions migrate to 4 per
 
   for (const version of [1, 2]) {
     const migrated = migrateSession({ version, controls: { projectedFee: "0.2" } });
-    assert.equal(migrated.version, 5);
+    assert.equal(migrated.version, 11);
     assert.equal(migrated.controls.expectedRealReturnMode, "historical");
     assert.equal(migrated.controls.customExpectedRealReturn, 0.03);
     assert.equal(migrated.controls.childBenefitDurationYears, 18);
     assert.equal(migrated.controls.withdrawalRate, 0.04);
   }
+});
+
+test("pension points convert to monthly gross pension at the July 2026 value", () => {
+  assert.ok(Math.abs(resolveMonthlyPension({ mode: "points", points: 40 }) - 1700.8) < 1e-9);
+  assert.equal(resolveMonthlyPension({ mode: "monthly", monthly: 1500 }), 1500);
+  assert.equal(resolveMonthlyPension({ mode: "points", points: -5 }), 0);
+});
+
+test("ETF tranches implement newest-tranche-first and FIFO within each tranche", () => {
+  const household = {
+    applicant: {
+      birthdate: new Date(1990, 0, 1),
+      monthlyContribution: 100,
+      retirementAge: 67,
+    },
+    spouse: null,
+  };
+  const monthlyPath = Array.from({ length: 24 }, (_, index) => ({
+    basisRate: 0.032,
+    inflationRatio: 1,
+    key: `${2026 + Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`,
+    marketReturn: 0.01,
+  }));
+  const common = {
+    adjustInflowsForInflation: true,
+    household,
+    monthlyPath,
+    now: new Date(2026, 0, 1),
+    retirementDate: new Date(2028, 0, 1),
+  };
+  const oneTranche = projectOrdinaryEtfPath({
+    ...common,
+    config: { monthlyContribution: 250, startYear: 2026, endYear: 2027, trancheCount: 1 },
+  });
+  const fourTranches = projectOrdinaryEtfPath({
+    ...common,
+    config: { monthlyContribution: 250, startYear: 2026, endYear: 2027, trancheCount: 4 },
+  });
+  const sevenUnevenTranches = projectOrdinaryEtfPath({
+    ...common,
+    adjustInflowsForInflation: true,
+    monthlyPath: monthlyPath.map((sample) => ({ ...sample, inflationRatio: 1.0017 })),
+    config: { monthlyContribution: 233, startYear: 2026, endYear: 2027, trancheCount: 7 },
+  });
+  const baselinePlusDecision = projectOrdinaryEtfPath({
+    ...common,
+    config: { monthlyContribution: 250, startYear: 2026, endYear: 2027, trancheCount: 4 },
+    includeDecisionContribution: true,
+  });
+  const fireWithdrawal = projectOrdinaryEtfPath({
+    ...common,
+    config: {
+      monthlyContribution: 250,
+      startYear: 2026,
+      endYear: 2026,
+      postSavingsMonthlyFlow: -100,
+      trancheCount: 4,
+    },
+  });
+  const fifoGain = realizeEtfWithdrawal(oneTranche.lots, 600).gain;
+  const newestTrancheGain = realizeEtfWithdrawal(fourTranches.lots, 600).gain;
+  assert.ok(newestTrancheGain < fifoGain);
+  assert.ok(fourTranches.advanceAssessments > 0);
+  assert.equal(fourTranches.contributions, 6000);
+  assert.equal(fourTranches.realContributions, 6000);
+  assert.equal(baselinePlusDecision.realContributions - fourTranches.realContributions, 2400);
+  assert.ok(baselinePlusDecision.value > fourTranches.value);
+  assert.ok(fireWithdrawal.preRetirementWithdrawals > 0);
+  assert.equal(fireWithdrawal.preRetirementWithdrawalShortfall, 0);
+  assert.ok(fireWithdrawal.value < fourTranches.value);
+  assert.ok(sevenUnevenTranches.contributions > 24 * 233);
+  assert.equal(new Set(sevenUnevenTranches.lots.map((lot) => lot.trancheIndex)).size, 7);
+});
+
+test("Vorabpauschale is recognized in the following tax year", () => {
+  const household = {
+    applicant: { birthdate: new Date(1990, 0, 1), monthlyContribution: 0, retirementAge: 67 },
+    spouse: null,
+  };
+  const monthlyPath = Array.from({ length: 24 }, (_, index) => ({
+    basisRate: index < 12 ? 0.032 : 0,
+    inflationRatio: 1,
+    key: `${2026 + Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`,
+    marketReturn: index < 12 ? 0.01 : 0,
+  }));
+  const common = {
+    adjustInflowsForInflation: false,
+    household,
+    now: new Date(2026, 0, 1),
+    config: {
+      monthlyContribution: 20_000,
+      startYear: 2026,
+      endYear: 2026,
+      trancheCount: 1,
+    },
+  };
+
+  const throughDecember = projectOrdinaryEtfPath({
+    ...common,
+    monthlyPath: monthlyPath.slice(0, 12),
+    retirementDate: new Date(2027, 0, 1),
+  });
+  const throughJanuary = projectOrdinaryEtfPath({
+    ...common,
+    monthlyPath: monthlyPath.slice(0, 13),
+    retirementDate: new Date(2027, 1, 1),
+  });
+  const throughFollowingDecember = projectOrdinaryEtfPath({
+    ...common,
+    monthlyPath,
+    retirementDate: new Date(2028, 0, 1),
+  });
+
+  assert.ok(throughDecember.pendingAdvanceAssessment > 0);
+  assert.equal(throughDecember.totalTaxPaid, 0);
+  assert.equal(throughJanuary.pendingAdvanceAssessment, 0);
+  assert.ok(throughJanuary.totalTaxPaid > 0);
+  assert.equal(throughJanuary.totalTaxPaid, throughFollowingDecember.totalTaxPaid);
+  assert.equal(throughJanuary.advanceTaxPaid, throughFollowingDecember.advanceTaxPaid);
+});
+
+test("ETF losses carry forward and the saver allowance reduces tax", () => {
+  const lossYear = calculateEtfTaxYear({
+    grossCapitalIncome: -1_000,
+    grossNonWithdrawalIncome: 0,
+    lossCarryforward: 0,
+    saverAllowance: 0,
+  });
+  const laterGain = calculateEtfTaxYear({
+    grossCapitalIncome: 1_500,
+    grossNonWithdrawalIncome: 0,
+    lossCarryforward: lossYear.remainingLossCarryforward,
+    saverAllowance: 0,
+  });
+  const laterGainWithoutLoss = calculateEtfTaxYear({
+    grossCapitalIncome: 1_500,
+    grossNonWithdrawalIncome: 0,
+    lossCarryforward: 0,
+    saverAllowance: 0,
+  });
+  const withAllowance = calculateEtfTaxYear({
+    grossCapitalIncome: 2_000,
+    grossNonWithdrawalIncome: 2_000,
+    lossCarryforward: 0,
+    saverAllowance: 1_000,
+  });
+  const allowanceUsedElsewhere = calculateEtfTaxYear({
+    grossCapitalIncome: 2_000,
+    grossNonWithdrawalIncome: 2_000,
+    lossCarryforward: 0,
+    saverAllowance: 0,
+  });
+
+  assert.equal(lossYear.remainingLossCarryforward, 700);
+  assert.ok(laterGain.totalTax < laterGainWithoutLoss.totalTax);
+  assert.ok(allowanceUsedElsewhere.totalTax > withAllowance.totalTax);
+});
+
+test("historical ETF prelude makes a past Sparbeginn affect the retirement portfolio", () => {
+  const history = Array.from({ length: 24 }, (_, index) => ({
+    basisRate: 0,
+    inflationRatio: 1,
+    key: `${2020 + Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`,
+    marketReturn: 0,
+  }));
+  const future = Array.from({ length: 12 }, (_, index) => ({
+    basisRate: 0,
+    inflationRatio: 1,
+    key: `future-${index}`,
+    marketReturn: 0,
+  }));
+  const now = new Date(2022, 0, 1);
+  const household = {
+    applicant: {
+      birthdate: new Date(1990, 0, 1),
+      monthlyContribution: 50,
+      retirementAge: 67,
+    },
+    spouse: null,
+  };
+  const prelude2020 = buildEtfHistoricalPrelude(history, 2020, now);
+  const prelude2021 = buildEtfHistoricalPrelude(history, 2021, now);
+  const common = {
+    adjustInflowsForInflation: false,
+    household,
+    decisionStartDate: now,
+    retirementDate: new Date(2023, 0, 1),
+    config: { monthlyContribution: 100, endYear: 2022, trancheCount: 1 },
+  };
+  const from2020 = projectOrdinaryEtfPath({
+    ...common,
+    config: { ...common.config, startYear: 2020 },
+    monthlyPath: [...prelude2020, ...future],
+    now: new Date(2020, 0, 1),
+  });
+  const from2021 = projectOrdinaryEtfPath({
+    ...common,
+    config: { ...common.config, startYear: 2021 },
+    monthlyPath: [...prelude2021, ...future],
+    now: new Date(2021, 0, 1),
+  });
+  const noAvdFrom2020 = projectOrdinaryEtfPath({
+    ...common,
+    config: { ...common.config, startYear: 2020 },
+    includeDecisionContribution: true,
+    monthlyPath: [...prelude2020, ...future],
+    now: new Date(2020, 0, 1),
+  });
+
+  assert.equal(prelude2020.length, 24);
+  assert.equal(prelude2021.length, 12);
+  assert.equal(from2020.contributions, 36 * 100);
+  assert.equal(from2021.contributions, 24 * 100);
+  assert.ok(from2020.value > from2021.value);
+  assert.equal(noAvdFrom2020.contributions - from2020.contributions, 12 * 50);
+});
+
+test("FIRE withdrawals empty the ETF, report shortfalls, and net X against withdrawals", () => {
+  const household = {
+    applicant: {
+      birthdate: new Date(1990, 0, 1),
+      monthlyContribution: 100,
+      retirementAge: 67,
+    },
+    spouse: null,
+  };
+  const monthlyPath = Array.from({ length: 24 }, (_, index) => ({
+    basisRate: 0,
+    inflationRatio: 1,
+    key: `${2026 + Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`,
+    marketReturn: 0,
+  }));
+  const common = {
+    adjustInflowsForInflation: false,
+    household,
+    monthlyPath,
+    now: new Date(2026, 0, 1),
+    retirementDate: new Date(2028, 0, 1),
+    config: {
+      monthlyContribution: 100,
+      startYear: 2026,
+      endYear: 2026,
+      postSavingsMonthlyFlow: -10_000,
+      trancheCount: 2,
+    },
+  };
+  const baseline = projectOrdinaryEtfPath(common);
+  const withDecisionContribution = projectOrdinaryEtfPath({
+    ...common,
+    includeDecisionContribution: true,
+  });
+
+  assert.equal(baseline.value, 0);
+  assert.equal(baseline.remainingCostBasis, 0);
+  assert.ok(baseline.preRetirementWithdrawalShortfall > 0);
+  assert.equal(withDecisionContribution.value, 0);
+  assert.equal(withDecisionContribution.remainingCostBasis, 0);
+  assert.ok(withDecisionContribution.preRetirementWithdrawals > baseline.preRetirementWithdrawals);
+  assert.ok(withDecisionContribution.preRetirementWithdrawalShortfall < baseline.preRetirementWithdrawalShortfall);
+  assert.equal(
+    baseline.preRetirementWithdrawals + baseline.preRetirementWithdrawalShortfall,
+    12 * 10_000,
+  );
+  assert.equal(
+    withDecisionContribution.preRetirementWithdrawals + withDecisionContribution.preRetirementWithdrawalShortfall,
+    12 * (10_000 - 100),
+  );
+  assert.equal(withDecisionContribution.contributions, 12 * (100 + 100));
+});
+
+test("netting X against FIRE withdrawals avoids fictitious lots and reduces realized-gain tax", () => {
+  const household = {
+    applicant: {
+      birthdate: new Date(1990, 0, 1),
+      monthlyContribution: 2_000,
+      retirementAge: 67,
+    },
+    spouse: null,
+  };
+  const monthlyPath = Array.from({ length: 24 }, (_, index) => ({
+    basisRate: 0,
+    inflationRatio: 1,
+    key: `${2026 + Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`,
+    marketReturn: index < 12 ? 0.02 : 0,
+  }));
+  const common = {
+    adjustInflowsForInflation: false,
+    household,
+    monthlyPath,
+    now: new Date(2026, 0, 1),
+    retirementDate: new Date(2028, 0, 1),
+    config: {
+      monthlyContribution: 10_000,
+      startYear: 2026,
+      endYear: 2026,
+      postSavingsMonthlyFlow: -10_000,
+      trancheCount: 4,
+    },
+  };
+  const baseline = projectOrdinaryEtfPath(common);
+  const noAvd = projectOrdinaryEtfPath({ ...common, includeDecisionContribution: true });
+
+  assert.equal(baseline.contributions, 120_000);
+  assert.equal(noAvd.contributions, 144_000);
+  assert.equal(baseline.preRetirementWithdrawals, 120_000);
+  assert.equal(noAvd.preRetirementWithdrawals, 96_000);
+  assert.ok(baseline.preRetirementWithdrawalTax > 0);
+  assert.ok(noAvd.preRetirementWithdrawalTax < baseline.preRetirementWithdrawalTax);
+});
+
+test("Basiszins data spans all market years and retains the official 2026 value", async () => {
+  const csv = await readFile(new URL("./basiszins.csv", import.meta.url), "utf8");
+  const rates = parseBasisRateCsv(csv);
+  assert.equal(rates.size, 127);
+  assert.equal(rates.get(2026), 0.032);
+  assert.ok(rates.get(1900) > 0);
+});
+
+test("2026 tax comparison applies the favorable tax assessment to ETF gains", () => {
+  assert.equal(incomeTax2026(12_348), 0);
+  assert.ok(incomeTax2026(12_400) > 0);
+  assert.equal(statutoryPensionTaxableShare(2026), 0.84);
+  assert.equal(statutoryPensionTaxableShare(2058), 1);
+
+  const lowIncome = compareNetWithdrawals({
+    grossWithdrawal: 12_000,
+    retirementValue: 300_000,
+    pensionAnnual: 0,
+    parallelEtfAnnual: 0,
+    etfGainShare: 0.5,
+    retirementYear: 2026,
+  });
+  assert.equal(lowIncome.avdTax, 0);
+  assert.equal(lowIncome.avdNetRate, 0.04);
+  assert.equal(lowIncome.etfTax, 0);
+  assert.equal(lowIncome.etfTaxMethod, "tariff");
+  assert.equal(lowIncome.avdNet, lowIncome.etfNet);
+  assert.equal(lowIncome.avdTotalNetIncome, 12_000);
+  assert.equal(lowIncome.etfTotalNetIncome, 12_000);
+
+  const pensionIncome = compareNetWithdrawals({
+    grossWithdrawal: 12_000,
+    retirementValue: 300_000,
+    pensionAnnual: 36_000,
+    parallelEtfAnnual: 0,
+    etfGainShare: 0.5,
+    retirementYear: 2026,
+  });
+  assert.ok(pensionIncome.avdTax > lowIncome.avdTax);
+  assert.ok(pensionIncome.etfNet > pensionIncome.avdNet);
+
+  const highIncome = compareNetWithdrawals({
+    grossWithdrawal: 12_000,
+    retirementValue: 300_000,
+    pensionAnnual: 120_000,
+    parallelEtfAnnual: 0,
+    etfGainShare: 0.5,
+    retirementYear: 2026,
+  });
+  assert.equal(highIncome.etfTaxMethod, "flat");
+  assert.ok(highIncome.etfTax > 0);
+
+  const usedAllowance = compareNetWithdrawals({
+    grossWithdrawal: 12_000,
+    retirementValue: 300_000,
+    pensionAnnual: 120_000,
+    parallelEtfAnnual: 12_000,
+    etfGainShare: 0.5,
+    retirementYear: 2026,
+  });
+  assert.ok(usedAllowance.etfTax > highIncome.etfTax);
+
+  const combinedIncome = compareNetWithdrawals({
+    grossWithdrawal: 12_000,
+    retirementValue: 300_000,
+    pensionAnnual: 24_000,
+    parallelEtfAnnual: 6_000,
+    etfGainShare: 0.5,
+    retirementYear: 2026,
+  });
+  assert.equal(combinedIncome.totalGrossIncome, 42_000);
+  assert.ok(combinedIncome.avdTotalNetIncome < combinedIncome.totalGrossIncome);
+  assert.ok(combinedIncome.etfTotalNetIncome < combinedIncome.totalGrossIncome);
+  assert.ok(
+    Math.abs(
+      combinedIncome.pensionNetIncome +
+        combinedIncome.parallelEtfNetIncome +
+        combinedIncome.avdNet -
+        combinedIncome.avdTotalNetIncome,
+    ) < 1e-9,
+  );
+  assert.ok(
+    Math.abs(
+      combinedIncome.pensionNetIncome +
+        combinedIncome.parallelEtfNetIncome +
+        combinedIncome.etfNet -
+        combinedIncome.etfTotalNetIncome,
+    ) < 1e-9,
+  );
+  assert.ok(
+    Math.abs(
+      (combinedIncome.avdTotalNetIncome - combinedIncome.etfTotalNetIncome) -
+        (combinedIncome.avdNet - combinedIncome.etfNet),
+    ) < 1e-9,
+  );
+  assert.ok(Math.abs(
+    combinedIncome.avdTotalGrossIncome - combinedIncome.avdTotalTax -
+      combinedIncome.kvdrTotalContributions - combinedIncome.avdTotalNetIncome,
+  ) < 1e-9);
+  assert.ok(Math.abs(
+    combinedIncome.etfTotalGrossIncome - combinedIncome.etfTotalTax -
+      combinedIncome.kvdrTotalContributions - combinedIncome.etfTotalNetIncome,
+  ) < 1e-9);
+});
+
+test("KVdR universally charges statutory pension and deducts the same contributions", () => {
+  const contributions = calculateKvdrContributions({
+    pensionAnnual: 24_000,
+    careInsuranceRate: 0.036,
+  });
+
+  assert.equal(contributions.assumedKvdr, true);
+  assert.equal(contributions.contributionBase, 24_000);
+  assert.equal(contributions.healthInsurance, 2_100);
+  assert.ok(Math.abs(contributions.careInsurance - 864) < 1e-9);
+  assert.ok(Math.abs(contributions.total - 2_964) < 1e-9);
+  assert.equal(contributions.deductible, contributions.total);
+  assert.equal(contributions.healthInsuranceRate, 0.0875);
+
+  const capped = calculateKvdrContributions({
+    pensionAnnual: 100_000,
+    careInsuranceRate: 0.042,
+  });
+  assert.equal(capped.contributionBase, 69_750);
+
+  assert.equal(kvdrCareInsuranceRateForHousehold([], new Date(2050, 0, 1)), 0.042);
+  assert.ok(Math.abs(kvdrCareInsuranceRateForHousehold(
+    [new Date(2030, 0, 1), new Date(2032, 0, 1), new Date(2034, 0, 1)],
+    new Date(2050, 0, 1),
+  ) - 0.031) < 1e-12);
+
+  const lowAvd = compareNetWithdrawals({
+    grossWithdrawal: 6_000,
+    pensionAnnual: 24_000,
+    kvdrCareInsuranceRate: 0.042,
+  });
+  const highAvd = compareNetWithdrawals({
+    grossWithdrawal: 60_000,
+    pensionAnnual: 24_000,
+    kvdrCareInsuranceRate: 0.042,
+  });
+  assert.equal(lowAvd.assumedKvdr, true);
+  assert.equal(lowAvd.kvdrTotalContributions, highAvd.kvdrTotalContributions);
+  assert.equal(lowAvd.pensionTaxable, Math.max(
+    lowAvd.pensionTaxableBeforeKvdr - lowAvd.kvdrDeductibleContributions,
+    0,
+  ));
+});
+
+test("income waterfall adds gross streams and subtracts tax on one shared scale", () => {
+  const geometry = incomeWaterfallGeometry({
+    pension: 18_000,
+    baselineEtf: 12_000,
+    decision: 6_000,
+    netTotal: 31_500,
+  }, 48_000);
+
+  assert.equal(geometry.gross, 36_000);
+  assert.equal(geometry.tax, 4_500);
+  assert.equal(geometry.net, 31_500);
+  assert.deepEqual(
+    geometry.steps.map(({ start, end, value }) => ({ start, end, value })),
+    [
+      { start: 0, end: 18_000, value: 18_000 },
+      { start: 18_000, end: 30_000, value: 12_000 },
+      { start: 30_000, end: 36_000, value: 6_000 },
+      { start: 36_000, end: 31_500, value: -4_500 },
+      { start: 0, end: 31_500, value: 31_500 },
+    ],
+  );
+  assert.equal(geometry.steps[0].heightPercent, 37.5);
+  assert.equal(geometry.steps[3].bottomPercent, 65.625);
+  assert.equal(geometry.steps[4].heightPercent, 65.625);
+  assert.equal(waterfallConnectorPercent(geometry.steps[0], geometry.steps[1], geometry.scale), 37.5);
+  assert.equal(waterfallConnectorPercent(geometry.steps[3], geometry.steps[4], geometry.scale), 65.625);
+  assert.equal(waterfallConnectorPercent(geometry.steps[4], geometry.steps[3], geometry.scale), 65.625);
+  assert.equal(waterfallConnectorPercent(geometry.steps[3], geometry.steps[2], geometry.scale), 75);
+});
+
+test("the displayed AVD advantage is the difference between the displayed total-net scenarios", () => {
+  const comparison = {
+    avdAdvantage: 221 * 12,
+    avdTotalNetIncome: 7_052 * 12,
+    etfTotalNetIncome: 7_058 * 12,
+  };
+
+  assert.equal(comparisonAdvantageFromTotals(comparison), -6 * 12);
+});
+
+test("waterfall comparison averages every component across paired runs", () => {
+  const representative = averageComparison([
+    { avdTotalNetIncome: 50, etfTotalNetIncome: 150, grossWithdrawal: 10 },
+    { avdTotalNetIncome: 110, etfTotalNetIncome: 100, grossWithdrawal: 20 },
+    { avdTotalNetIncome: 230, etfTotalNetIncome: 200, grossWithdrawal: 40 },
+    { avdTotalNetIncome: 300, etfTotalNetIncome: 200, grossWithdrawal: 80 },
+  ]);
+
+  assert.equal(representative.avdTotalNetIncome, 172.5);
+  assert.equal(representative.etfTotalNetIncome, 162.5);
+  assert.equal(representative.avdAdvantage, 10);
+  assert.equal(representative.grossWithdrawal, 37.5);
+});
+
+test("paired AVD advantages produce a symmetric histogram and decision statistics", () => {
+  const distribution = buildAdvantageDistribution([
+    { avdTotalNetIncome: 110, etfTotalNetIncome: 100 },
+    { avdTotalNetIncome: 90, etfTotalNetIncome: 100 },
+    { avdTotalNetIncome: 120, etfTotalNetIncome: 100 },
+    { avdTotalNetIncome: 80, etfTotalNetIncome: 100 },
+    { avdTotalNetIncome: 100, etfTotalNetIncome: 100 },
+  ]);
+
+  assert.equal(distribution.pathCount, 5);
+  assert.equal(distribution.avdWinCount, 2);
+  assert.equal(distribution.etfWinCount, 2);
+  assert.equal(distribution.tieCount, 1);
+  assert.equal(distribution.avdWinRate, 0.4);
+  assert.equal(distribution.median, 0);
+  assert.equal(distribution.bins.length, 6);
+  assert.equal(distribution.bins.reduce((sum, bin) => sum + bin.count, 0), 5);
+  assert.ok(distribution.logCertaintyEquivalentAdvantage < 0);
+});
+
+test("advantage histogram uses a robust range and keeps outliers in tail bins", () => {
+  const comparisons = Array.from({ length: 49 }, (_, index) => ({
+    avdTotalNetIncome: (4_000 + index - 24) * 12,
+    etfTotalNetIncome: 4_000 * 12,
+  }));
+  comparisons.push({
+    avdTotalNetIncome: 6_000 * 12,
+    etfTotalNetIncome: 4_000 * 12,
+  });
+
+  const distribution = buildAdvantageDistribution(comparisons);
+
+  assert.equal(distribution.bins.length, 8);
+  assert.ok(distribution.bound < 2_000);
+  assert.equal(distribution.bins.at(-1).count, 1);
+  assert.equal(distribution.bins.reduce((sum, bin) => sum + bin.count, 0), 50);
+});
+
+test("AVD win rates are split by below- and above-median real stock returns", () => {
+  const distribution = buildAdvantageDistribution([
+    { avdTotalNetIncome: 4_100 * 12, etfTotalNetIncome: 4_000 * 12, pathRealAnnualReturn: 0.01 },
+    { avdTotalNetIncome: 4_050 * 12, etfTotalNetIncome: 4_000 * 12, pathRealAnnualReturn: 0.03 },
+    { avdTotalNetIncome: 3_950 * 12, etfTotalNetIncome: 4_000 * 12, pathRealAnnualReturn: 0.07 },
+    { avdTotalNetIncome: 3_900 * 12, etfTotalNetIncome: 4_000 * 12, pathRealAnnualReturn: 0.09 },
+  ]);
+
+  assert.equal(distribution.returnRegimes.medianRealAnnualReturn, 0.05);
+  assert.equal(distribution.returnRegimes.belowMedian.pathCount, 2);
+  assert.equal(distribution.returnRegimes.belowMedian.avdWinRate, 1);
+  assert.equal(distribution.returnRegimes.aboveMedian.pathCount, 2);
+  assert.equal(distribution.returnRegimes.aboveMedian.avdWinRate, 0);
 });
 
 test("return assumption is omitted from localized status messages", () => {
@@ -966,6 +1676,8 @@ test("withdrawal diagnostics and model qualifications are exposed accessibly", a
   assert.doesNotMatch(html, /id="withdrawal-success"/);
   assert.match(html, /id="withdrawal-rate-help"/);
   assert.match(html, /id="withdrawal-rate-status"/);
+  assert.match(html, /id="comparison-bars"/);
+  assert.match(html, /aria-labelledby="income-chart-title"/);
   assert.match(html, /aria-describedby="withdrawal-rate-help"/);
   assert.match(html, /aria-live="polite"/);
   assert.match(css, /\.withdrawal-info-tooltip[\s\S]*white-space: pre-line/);
@@ -973,14 +1685,24 @@ test("withdrawal diagnostics and model qualifications are exposed accessibly", a
   assert.match(css, /\.withdrawal-rate-caption[\s\S]*?text-transform: uppercase/);
   assert.match(css, /@media \(max-width: 420px\)[\s\S]*?\.summary-grid[\s\S]*?grid-template-columns: 1fr/);
   assert.match(css, /\.summary-grid\s*\{[\s\S]*?position: relative;[\s\S]*?z-index: 2;/);
+  assert.match(css, /\.vertical-waterfall\s*\{[\s\S]*?grid-template-columns:/);
+  assert.match(css, /\.waterfall-step\s*\{[\s\S]*?grid-template-rows:/);
+  assert.match(css, /\.tax-step \.waterfall-bar\s*\{[\s\S]*?repeating-linear-gradient/);
+  assert.match(css, /\.waterfall-connector\s*\{[\s\S]*?border-top:/);
+  assert.match(css, /\.advantage-histogram-ticks\s*\{[\s\S]*?font-variant-numeric:/);
+  assert.match(css, /repeat\(var\(--histogram-bin-count, 16\), minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.advantage-histogram-bin::after\s*\{[\s\S]*?data-histogram-tooltip/);
+  assert.match(source, /data-histogram-tooltip="\$\{title\}" aria-label="\$\{title\}"/);
+  assert.match(css, /\.income-bars\s*\{[\s\S]*?grid-template-columns: repeat\(2/);
+  assert.match(source, /scenario\.mirrored \? \[4, 3, 2, 1, 0\] : \[0, 1, 2, 3, 4\]/);
   assert.match(css, /\.chart-panel\s*\{[\s\S]*?position: relative;[\s\S]*?z-index: 1;/);
   assert.match(css, /\.summary-card:hover,[\s\S]*?\.summary-card:focus-within\s*\{[\s\S]*?z-index: 1;/);
-  assert.match(source, /Avg\. extra income \(gross\)/);
+  assert.match(source, /Avg\. extra income incl\. Riester \(gross\)/);
   assert.match(source, /withdrawalRateStatus/);
   assert.match(source, /withdrawalRateCandidates: WITHDRAWAL_RATE_OPTIONS/);
   assert.match(source, /withdrawalRate: Number\(elements\.withdrawalRate\.value\)/);
   assert.match(source, /formatWithdrawalRate\(rate\)} \(\${formatSuccessPercent\(stats\.successRate\)}\)/);
-  assert.match(source, /displayed value is the median modeled extra income/);
+  assert.match(source, /same arithmetic average consolidated AVD gross withdrawal used in the net comparison/);
   assert.match(source, /first household income shortfall/);
   assert.match(assumptions, /gesamte modellierte Steuererstattung[\s\S]*wieder/);
   assert.match(assumptions, /zentrale Projektion ist der Median/);

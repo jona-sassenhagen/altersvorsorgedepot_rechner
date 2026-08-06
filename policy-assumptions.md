@@ -104,9 +104,9 @@ Die App verwendet ein vereinfachtes Grenzsteuersatz-Modell.
 
 - Nutzende wählen eine Einkommensklasse statt eines exakten zu versteuernden Einkommens.
 - Jede Einkommensklasse wird auf einen repräsentativen Grenzsteuersatz abgebildet.
-- Der geschätzte jährliche Steuervorteil je erwachsener Person ist:
-  - `max(förderfähiger Jahresbeitrag * Grenzsteuersatz - direkte Förderung dieser Person, 0)`
-- Die App nimmt ausdrücklich an, dass die gesamte modellierte Steuererstattung am Jahresende wieder in das jeweilige Altersvorsorgedepot eingezahlt und weiter investiert wird. Das geschieht in der Realität nicht automatisch.
+- Der geschätzte jährliche zusätzliche Steuervorteil je erwachsener Person ist:
+  - `max((förderfähiger Eigenbeitrag + direkte Zulagen) * Grenzsteuersatz - direkte Zulagen, 0)`
+- Die modellierte Steuererstattung wird als ungeförderter Eigenbeitrag mit Steuerbasis wiederangelegt; das geschieht in der Realität nicht automatisch.
 - In v1 ist der förderfähige Jahresbeitrag für den vereinfachten `Sonderausgabenabzug` auf EUR 1.800 gedeckelt, also auf die im BMF-Entwurf beschriebene Fördergrenze der neuen proportionalen Förderung.
 - Beiträge oberhalb von EUR 1.800 werden investiert, erhöhen aber nicht die modellierte Förderung oder den modellierten Steuervorteil.
 
@@ -132,13 +132,36 @@ Diese Klassen sind Modellannahmen, keine gesetzlichen Tarifzonen:
 - Für jeden historischen Pfad werden die monatlichen Inflationsverhältnisse gemeinsam mit den Renditen desselben historischen Monats in unveränderter Reihenfolge verwendet.
 - Historische Kapitalmarktdaten und CPI-Daten werden monatlich zusammengeführt, damit nominale und reale Ergebnisse aus demselben Simulationspfad entstehen.
 
+## Nettovergleich von AVD und gewöhnlichem ETF
+
+Der Modus `Nettovergleich` modelliert einen bestehenden ETF-Basisplan, der in beiden Szenarien identisch läuft. Zusätzlich wird derselbe Haushaltsbeitrag X aus den Feldern `Monatlicher Beitrag` entweder in das AVD oder in das gewöhnliche ETF-Depot gelenkt. Nur das AVD erhält Förderung und die modellierte Steuererstattung. Sparbeginn und Sparende betreffen den ETF-Basisplan; liegt der Sparbeginn in der Vergangenheit, wird das Depot mit den tatsächlich vorliegenden monatlichen Aktienrenditen, Inflationswerten und Basiszinsen bis heute aufgebaut und erst danach in die historischen Zukunftspfade verzweigt. Alle eingegebenen Eurobeträge sind bei aktivierter Fortschreibung in heutiger Kaufkraft verankert. X beginnt in beiden Alternativen erst heute und endet für jede Person mit deren Renteneintritt. Beide Alternativen verwenden denselben Entnahmesatz auf dem aus X entstandenen Depotanteil.
+
+Für die Phase ab Januar nach `Sparende` bis zum Rentenbeginn kann eine zweite monatliche ETF-Bewegung angegeben werden. Positive Werte sind weitere Einzahlungen, negative Werte sind angeforderte Bruttoentnahmen vor Steuern. Im Szenario ohne AVD wird der gegenfaktische AVD-Beitrag X zuerst mit dieser ETF-Bewegung verrechnet: Bei einer negativen Bewegung sinkt dadurch die tatsächliche Entnahme um X; nur ein darüber hinausgehender positiver Saldo wird als neue ETF-Einzahlung verbucht. Erst danach werden Lose verkauft und Gewinne realisiert. Entnahmen werden auf das verfügbare Depot begrenzt und verkaufen die Lose nach derselben Tranchensystematik; sobald das Depot leer ist, werden weitere angeforderte Beträge als **nicht gedeckte FIRE-Entnahmen** ausgewiesen und erzeugen kein fiktives Einkommen. Realisierte Gewinne und Vorabpauschalen teilen sich in der Modellnäherung den jährlichen Sparer-Pauschbetrag. Mangels Angaben zum Erwerbseinkommen wird in dieser Vorruhestandsphase die Abgeltungsteuer statt einer Günstigerprüfung verwendet.
+
+Die hervorgehobene monatliche Nettozahl ist das gesamte modellierte Haushaltseinkommen nach Einkommensteuer sowie Kranken- und Pflegeversicherungsbeiträgen: gesetzliche Bruttorente, Entnahme aus dem bestehenden ETF-Basisplan und die aus X entstandene Entnahme aus AVD beziehungsweise ETF. Steuer und Beiträge werden für jede vollständige Kombination pfadweise neu berechnet; die einzelnen Nettoanteile werden wegen Progression und Günstigerprüfung nicht unabhängig voneinander addiert.
+
+Im Wasserfalldiagramm werden Einkommensteuer sowie KVdR-Kranken- und Pflegeversicherungsbeiträge zusammen als negativer Schritt vom gesamten Brutto abgezogen. Dadurch entspricht der Endwert exakt der hervorgehobenen Gesamtnettozahl.
+
+- Das AVD-Vermögen wird je Person in gefördertes und ungefördertes Kapital aufgeteilt. Der geförderte Entnahmeanteil ist vollständig steuerpflichtig; beim ungeförderten Anteil wird für den modellierten Depot-Auszahlungsplan nur der anteilige Ertrag nach § 22 Nummer 5 Satz 2 Buchstabe c EStG angesetzt.
+- Die gesetzliche Bruttorente wird entsprechend dem Jahr des modellierten Rentenbeginns zu 84 Prozent (2026) zuzüglich 0,5 Prozentpunkten je späterem Jahr, maximal zu 100 Prozent ab 2058, angesetzt. Der Werbungskosten-Pauschbetrag für Renteneinkünfte wird vereinfacht berücksichtigt.
+- Alternativ zur direkten Bruttorente können Rentenpunkte eingegeben werden. Die Umrechnung verwendet den seit 1. Juli 2026 geltenden aktuellen Rentenwert von 42,52 EUR je Entgeltpunkt und Monat sowie vereinfachend Zugangsfaktor und Rentenartfaktor 1,0.
+- Das ETF-Depot wird für jeden historischen Aktien-/Inflationspfad mit monatlichen Anschaffungslosen aufgebaut. Die Beiträge werden wertmäßig gleichmäßig auf die gewählte Anzahl von Tranchen verteilt. Innerhalb jeder Tranche gilt FIFO; bei der Entnahme wird zuerst die jüngste noch nicht geleerte Tranche verwendet. Das bildet eine Strategie mit mehreren getrennten, wirtschaftlich ähnlichen ETFs ab und keine LIFO-Behandlung innerhalb eines einzelnen Sammeldepots.
+- Die Vorabpauschale wird am Jahresende ermittelt und erst zu Beginn des Folgejahres steuerlich erfasst.
+- Die Basiszins-Reihe 1998–2026 verwendet den ersten verfügbaren Börsentageswert der Bundesbank für aus der Zinsstruktur abgeleitete Renditen von Bundeswertpapieren mit jährlicher Kuponzahlung und 15 Jahren Restlaufzeit. Für 1900–1997 wird `DEU.ltrate` aus JST über die Überlappung 1998–2020 affin auf die Bundesbank-Reihe kalibriert. Fehlende JST-Jahre 1922–1923 und 1944–1947 werden linear interpoliert. Diese frühen Werte sind eine historische Näherung; der gesetzliche Basiszins existierte damals nicht.
+- Vorabpauschalen und realisierte Gewinne werden kalenderjährlich gemeinsam verrechnet. Negative Aktienfonds-Erträge werden nach Teilfreistellung vorgetragen. Der Sparer-Pauschbetrag wird vollständig dem ETF zugerechnet.
+- Für verbleibende Kapitalerträge vergleicht die App automatisch die Abgeltungsteuer von 25 Prozent zuzüglich Solidaritätszuschlag mit der tariflichen Einkommensteuer auf sämtliche Kapitalerträge (`Günstigerprüfung`) und verwendet die niedrigere Gesamtsteuer. Die Solidaritätszuschlag-Freigrenze und Milderungszone 2026 werden in beiden Varianten berücksichtigt.
+- Bei einem aktivierten Partner wird vereinfachend Zusammenveranlagung mit Splittingtarif und gemeinsamem Sparer-Pauschbetrag angenommen.
+- Für alle Haushalte wird ohne Ausnahme eine Pflichtversicherung in der Krankenversicherung der Rentner (KVdR) unterstellt. Als beitragspflichtige Einnahme wird nur die gesetzliche Bruttorente angesetzt; AVD-, Riester- und ETF-Auszahlungen erhöhen die KVdR-Beitragsbasis nicht. Für 2026 verwendet das Modell den allgemeinen GKV-Beitragssatz von 14,6 Prozent zuzüglich 2,9 Prozent durchschnittlichem Zusatzbeitrag, jeweils zur Hälfte von der rentenbeziehenden Person getragen, sowie 3,6 Prozent Pflegeversicherung für Eltern beziehungsweise 4,2 Prozent für Kinderlose. Ab dem zweiten bis zum fünften Kind unter 25 Jahren sinkt der Pflegebeitrag um jeweils 0,25 Prozentpunkte. Die Beitragsbemessungsgrenze beträgt EUR 69.750 je versicherter erwachsener Person und Jahr. Die Beiträge werden sowohl vom verfügbaren Einkommen abgezogen als auch vollständig als Sonderausgaben vom zu versteuernden Renteneinkommen abgezogen.
+
+Nicht enthalten sind Kirchensteuer, Transaktionskosten und weitere individuelle Frei- oder Abzugsbeträge. Der proportionale Steuerverkauf wird ohne zusätzlichen Veräußerungsgewinn angenähert.
+
 ## Explizite Ausschlüsse
 
 Folgende Punkte sind in v1 bewusst nicht enthalten:
 
 - Live-Datenabruf von JST, Kuvshinov/Zimmermann, Curvo oder anderen Diensten
 - das separate kindeigene `Frühstart-Rente`-Depot
-- Anbietergebühren, Handelskosten, Steuern in der Auszahlungsphase oder alternative Entnahmestrategien
+- Anbietergebühren, Handelskosten oder alternative Entnahmestrategien außerhalb des dokumentierten Nettovergleichs
 - andere Fonds oder Aktienreihen als die aktive JST/KZ-MSCI-Weltaktienreihe
 - alte Riester-Bestandsregeln außer den wenigen hier explizit genannten Entwurfsübernahmen
 - rechtliche Detailprüfungen der Förderberechtigung

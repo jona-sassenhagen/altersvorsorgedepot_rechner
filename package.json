@@ -1,0 +1,9 @@
+{
+  "name": "altersvorsorgedepot-rechner",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "api": "node local-api.mjs",
+    "test": "node --test app.test.mjs jst-kz-global-equity.test.mjs api.test.mjs"
+  }
+}
